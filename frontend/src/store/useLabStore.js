@@ -167,6 +167,7 @@ const DEMO_MILESTONES = [
       { id: 's1', title: 'Create file structure', status: 'completed' },
       { id: 's2', title: 'Build UI layout', status: 'completed' },
       { id: 's3', title: 'Add base styling', status: 'active' },
+      { id: 'sq1', title: 'Take Milestone Assessment', status: 'locked' },
     ],
   },
   {
@@ -177,6 +178,7 @@ const DEMO_MILESTONES = [
       { id: 's4', title: 'Create fetchWeather function', status: 'locked' },
       { id: 's5', title: 'Add error handling', status: 'locked' },
       { id: 's6', title: 'Display weather data', status: 'locked' },
+      { id: 'sq2', title: 'Take Milestone Assessment', status: 'locked' },
     ],
   },
   {
@@ -256,6 +258,9 @@ const useLabStore = create((set, get) => ({
   profileMenuOpen: false,
   saveFlash: false, // true briefly after save
   newFileDialogOpen: false,
+  fileToDelete: null, // id of file to delete (shows modal)
+  livePreviewHtml: '', // only updates on Run or Save
+  insufficientCreditsError: false, // shown when credits < 2
 
   // Console
   consoleLogs: [],
@@ -286,6 +291,9 @@ const useLabStore = create((set, get) => ({
     profileMenuOpen: false,
     saveFlash: false,
     newFileDialogOpen: false,
+    fileToDelete: null,
+    livePreviewHtml: '',
+    insufficientCreditsError: false,
   }),
 
   loadProjectData: (projectData) => set({
@@ -337,6 +345,30 @@ const useLabStore = create((set, get) => ({
     return { openTabs: tabs, activeFileId: id };
   }),
 
+  renameFile: (id, newName) => set((state) => {
+    if (!newName || !newName.trim()) return state;
+    const name = newName.trim();
+    if (state.files.some(f => f.name === name && f.id !== id)) return state;
+    
+    const ext = name.split('.').pop()?.toLowerCase();
+    const langMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown' };
+    
+    return {
+      files: state.files.map(f => f.id === id ? { ...f, name, language: langMap[ext] || f.language } : f)
+    };
+  }),
+
+  setFileToDelete: (id) => set({ fileToDelete: id }),
+
+  deleteFile: (id) => set((state) => {
+    const newFiles = state.files.filter(f => f.id !== id);
+    const newTabs = state.openTabs.filter(tabId => tabId !== id);
+    const newActiveId = state.activeFileId === id
+      ? (newTabs.length > 0 ? newTabs[newTabs.length - 1] : null)
+      : state.activeFileId;
+    return { files: newFiles, openTabs: newTabs, activeFileId: newActiveId, fileToDelete: null };
+  }),
+
   closeTab: (id) => set((state) => {
     const newTabs = state.openTabs.filter(tabId => tabId !== id);
     const newActiveId = state.activeFileId === id
@@ -345,11 +377,16 @@ const useLabStore = create((set, get) => ({
     return { openTabs: newTabs, activeFileId: newActiveId };
   }),
 
-  // Save — marks all dirty files as clean, flashes checkmark
+  // Save — marks all dirty files as clean, flashes checkmark, and updates preview
   saveProject: () => {
+    const state = get();
+    // Re-compile HTML to livePreviewHtml on save
+    const newPreviewHtml = state.compilePreviewHtml(state);
+
     set((s) => ({
       files: s.files.map(f => f.status === 'unsaved' ? { ...f, isDirty: false, status: 'clean' } : f),
       saveFlash: true,
+      livePreviewHtml: newPreviewHtml
     }));
     // Reset flash after animation
     setTimeout(() => set({ saveFlash: false }), 1500);
@@ -375,29 +412,40 @@ const useLabStore = create((set, get) => ({
 
   // Run "code" — compiles preview + console output
   runCode: () => {
-    const { addConsoleLog, setBottomPanelTab } = get();
-    set({ bottomPanelOpen: true });
+    const { addConsoleLog, setBottomPanelTab, compilePreviewHtml } = get();
+    set({ bottomPanelOpen: true, consoleLogs: [] });
     setBottomPanelTab('console');
     addConsoleLog('Compiling project...', 'info');
-    setTimeout(() => addConsoleLog('Server started on http://localhost:3000', 'success'), 600);
+    
     setTimeout(() => {
+      const newPreviewHtml = compilePreviewHtml(get());
+      set({ livePreviewHtml: newPreviewHtml });
+      addConsoleLog('Server started on http://localhost:3000', 'success');
       addConsoleLog('Build completed in 143ms', 'success');
-      // Switch to preview after build
-      setTimeout(() => setBottomPanelTab('preview'), 400);
-    }, 1200);
+      setTimeout(() => setBottomPanelTab('preview'), 600);
+    }, 600);
   },
 
   // AI Operations
   setAiThinking: (status) => set({ isAiThinking: status }),
   deductCredit: (amount = 2) => set((state) => ({ credits: Math.max(0, state.credits - amount) })),
   setCurrentMilestone: (id) => set({ currentMilestoneId: id }),
+  setInsufficientCreditsError: (show) => set({ insufficientCreditsError: show }),
 
   addAiUserMessage: (content) => {
-    const { deductCredit, setAiThinking } = get();
+    const { credits, deductCredit, setAiThinking, setInsufficientCreditsError } = get();
+    
+    // Check if user has enough credits
+    if (credits < 2) {
+      setInsufficientCreditsError(true);
+      setTimeout(() => setInsufficientCreditsError(false), 3000);
+      return;
+    }
+    
     set((s) => ({
       aiMessages: [...s.aiMessages, { role: 'user', content }]
     }));
-    deductCredit(1);
+    deductCredit(2);
     setAiThinking(true);
 
     setTimeout(() => {
@@ -433,15 +481,40 @@ const useLabStore = create((set, get) => ({
 
   // Complete a milestone step (for triggering quiz)
   completeStep: (stepId) => set((s) => {
-    const updatedMilestones = s.milestones.map(m => ({
-      ...m,
-      steps: m.steps.map(step =>
+    const updatedMilestones = s.milestones.map(m => {
+      // First pass: update the completed step
+      const updatedSteps = m.steps.map(step =>
         step.id === stepId ? { ...step, status: 'completed' } : step
-      ),
-    }));
+      );
+
+      // Second pass: unlock assessment if all other steps are completed
+      const finalSteps = updatedSteps.map(step => {
+        if (step.title.toLowerCase().includes('assessment') && step.status === 'locked') {
+          const allOthersCompleted = updatedSteps
+            .filter(st => st.id !== step.id)
+            .every(st => st.status === 'completed');
+          if (allOthersCompleted) {
+            return { ...step, status: 'active' };
+          }
+        }
+        return step;
+      });
+
+      return { ...m, steps: finalSteps };
+    });
 
     // Check if current milestone is now fully completed
     const currentM = updatedMilestones.find(m => m.id === s.currentMilestoneId);
+
+    // Auto-trigger quiz if the step is an Assessment (new completion or retake)
+    const completedStep = currentM?.steps.find(st => st.id === stepId);
+    if (completedStep && completedStep.title.toLowerCase().includes('assessment')) {
+      return {
+        milestones: updatedMilestones,
+        quizOpen: true
+      };
+    }
+
     const allDone = currentM?.steps.every(step => step.status === 'completed');
 
     if (allDone) {
@@ -457,6 +530,17 @@ const useLabStore = create((set, get) => ({
 
     return { milestones: updatedMilestones };
   }),
+
+  triggerGuideForStep: (stepId) => {
+    const { milestones, addAiUserMessage } = get();
+    for (const m of milestones) {
+      const step = m.steps?.find(s => s.id === stepId);
+      if (step) {
+        addAiUserMessage(`Can you provide a guide or summary for the task: "${step.title}"?`);
+        break;
+      }
+    }
+  },
 
   // Milestone progression
   proceedToNextMilestone: () => set((s) => {
@@ -493,14 +577,41 @@ const useLabStore = create((set, get) => ({
     return state.files.find(f => f.id === state.activeFileId) || null;
   },
 
-  getCompiledPreview: () => {
-    const state = get();
+  compilePreviewHtml: (state) => {
     const htmlFile = state.files.find(f => f.name.endsWith('.html'))?.content || '';
     const cssFile = state.files.find(f => f.name.endsWith('.css'))?.content || '';
     const jsFile = state.files.find(f => f.name.endsWith('.js') && !f.name.endsWith('.jsx'))?.content || '';
 
     // If no HTML file, create a basic scaffold
     const htmlContent = htmlFile || `<div class="app"><h1>${state.projectName || 'Preview'}</h1><p>Add an index.html file for a full preview.</p></div>`;
+
+    // Script to intercept console methods and forward to parent window
+    const interceptorScript = `
+      <script>
+        (function() {
+          const originalLog = console.log;
+          const originalWarn = console.warn;
+          const originalError = console.error;
+          
+          console.log = function(...args) {
+            originalLog.apply(console, args);
+            window.parent.postMessage({ type: 'CONSOLE', level: 'log', args: args.map(String) }, '*');
+          };
+          console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            window.parent.postMessage({ type: 'CONSOLE', level: 'warning', args: args.map(String) }, '*');
+          };
+          console.error = function(...args) {
+            originalError.apply(console, args);
+            window.parent.postMessage({ type: 'CONSOLE', level: 'error', args: args.map(String) }, '*');
+          };
+          
+          window.onerror = function(message, source, lineno, colno, error) {
+            window.parent.postMessage({ type: 'CONSOLE', level: 'error', args: [\`\${message} at line \${lineno}\`] }, '*');
+          };
+        })();
+      </script>
+    `;
 
     return `<!DOCTYPE html>
 <html>
@@ -513,12 +624,15 @@ const useLabStore = create((set, get) => ({
   </head>
   <body>
     ${htmlContent}
+    ${interceptorScript}
     <script>
       try { ${jsFile} } catch(e) { console.error(e); }
     <\/script>
   </body>
 </html>`;
-  }
+  },
+  
+  getCompiledPreview: () => get().livePreviewHtml,
 }));
 
 export default useLabStore;

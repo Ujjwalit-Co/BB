@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, X, Zap, ArrowRight, Check } from 'lucide-react';
+import { Trophy, X, Zap, ArrowRight, Check, Flame, Sparkles, ThumbsUp, Armchair } from 'lucide-react';
 
 const QUIZ_COLORS = [
-  { bg: '#e74c3c', hover: '#c0392b' }, // Red
-  { bg: '#2980b9', hover: '#2471a3' }, // Blue
-  { bg: '#f39c12', hover: '#d68910' }, // Orange/Yellow
-  { bg: '#27ae60', hover: '#229954' }, // Green
+  { bg: '#ef4444', hover: '#dc2626', border: '#b91c1c' },   // Red
+  { bg: '#3b82f6', hover: '#2563eb', border: '#1d4ed8' },   // Blue
+  { bg: '#f59e0b', hover: '#d97706', border: '#b45309' },   // Amber
+  { bg: '#22c55e', hover: '#16a34a', border: '#15803d' },   // Green
 ];
 
 const DEMO_QUESTIONS = [
@@ -129,7 +129,7 @@ export default function QuizModal({ onComplete, onClose }) {
                   <Zap size={14} />
                   <span>{score} pts</span>
                   {streak > 1 && (
-                    <span className="lab-quiz-streak">{streak}x streak!</span>
+                    <span className="lab-quiz-streak">{streak}x</span>
                   )}
                 </div>
               </div>
@@ -166,11 +166,14 @@ export default function QuizModal({ onComplete, onClose }) {
                     <motion.button
                       key={idx}
                       className={`lab-quiz-answer ${stateClass}`}
-                      style={{ backgroundColor: stateClass === 'wrong' ? '#e74c3c' : stateClass === 'correct' ? '#27ae60' : color.bg }}
+                      style={{ 
+                        backgroundColor: stateClass === 'wrong' ? '#ef4444' : stateClass === 'correct' ? '#22c55e' : color.bg,
+                        borderColor: color.border,
+                      }}
                       onClick={() => handleAnswer(idx)}
                       disabled={selected !== null}
-                      whileHover={selected === null ? { scale: 1.03 } : {}}
-                      whileTap={selected === null ? { scale: 0.97 } : {}}
+                      whileHover={selected === null ? { scale: 1.02, y: -2 } : {}}
+                      whileTap={selected === null ? { scale: 0.98 } : {}}
                     >
                       <span className="lab-quiz-answer-text">{answer}</span>
                       {stateClass === 'correct' && <Check size={20} className="lab-quiz-answer-icon" />}
@@ -184,23 +187,62 @@ export default function QuizModal({ onComplete, onClose }) {
             /* Summary Screen */
             <div className="lab-quiz-summary">
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 200 }}
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
               >
-                <Trophy size={56} className="lab-quiz-trophy" />
+                <div className="lab-quiz-trophy-wrap">
+                  <Trophy size={64} className="lab-quiz-trophy" />
+                </div>
               </motion.div>
-              <h2 className="lab-quiz-summary-title">Quiz Complete!</h2>
-              <p className="lab-quiz-summary-score">{score} points</p>
-              <p className="lab-quiz-summary-detail">
-                {score >= 250 ? "Amazing work! You nailed it!" :
+              <motion.h2 
+                className="lab-quiz-summary-title"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                Quiz Complete!
+              </motion.h2>
+              <motion.p 
+                className="lab-quiz-summary-score"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, type: 'spring' }}
+              >
+                {score} points
+              </motion.p>
+              <motion.p 
+                className="lab-quiz-summary-detail"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {score >= 350 ? (
+                  <Flame size={20} className="lab-quiz-summary-icon" />
+                ) : score >= 250 ? (
+                  <Sparkles size={20} className="lab-quiz-summary-icon" />
+                ) : score >= 150 ? (
+                  <ThumbsUp size={20} className="lab-quiz-summary-icon" />
+                ) : (
+                  <Armchair size={20} className="lab-quiz-summary-icon" />
+                )}
+                {score >= 350 ? "Perfect! You're on fire!" :
+                 score >= 250 ? "Amazing work! Keep it up!" :
                  score >= 150 ? "Good job! Keep learning!" :
                  "Don't give up - practice makes perfect!"}
-              </p>
-              <button className="lab-quiz-proceed" onClick={handleProceed}>
+              </motion.p>
+              <motion.button 
+                className="lab-quiz-proceed" 
+                onClick={handleProceed}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+              >
                 <span>Proceed to Next Milestone</span>
                 <ArrowRight size={16} />
-              </button>
+              </motion.button>
             </div>
           )}
         </motion.div>

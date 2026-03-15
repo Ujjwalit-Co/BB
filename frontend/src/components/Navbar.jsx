@@ -3,10 +3,14 @@ import { Link } from 'react-router-dom';
 import { Sun, Moon, Terminal } from 'lucide-react';
 
 export default function Navbar() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true;
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
     if (isDark) {
       root.classList.add('dark');
     } else {

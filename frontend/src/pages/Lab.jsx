@@ -7,6 +7,7 @@ import FileSidebar from '../components/lab/FileSidebar';
 import EditorPane from '../components/lab/EditorPane';
 import AiPanel from '../components/lab/AiPanel';
 import QuizModal from '../components/lab/QuizModal';
+import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
 
 function MobileGuard() {
   return (
@@ -29,6 +30,7 @@ export default function Lab() {
     leftSidebarOpen, rightSidebarOpen,
     toggleLeftSidebar, toggleRightSidebar,
     quizOpen, closeQuiz, proceedToNextMilestone,
+    saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId
   } = useLabStore();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -36,6 +38,18 @@ export default function Lab() {
   useEffect(() => {
     initDemoProject();
   }, []);
+
+  // Global Ctrl+S override
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveProject();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [saveProject]);
 
   useEffect(() => {
     const checkWidth = () => setIsMobile(window.innerWidth < 768);
@@ -47,8 +61,23 @@ export default function Lab() {
   if (isMobile) return <MobileGuard />;
 
   const handleQuizComplete = (score) => {
+    closeQuiz();
+    const { milestones, currentMilestoneId } = useLabStore.getState();
+    const currentM = milestones.find(m => m.id === currentMilestoneId);
+    
+    // Mark the milestone as totally complete and open the Milestone Completed Modal
+    useLabStore.setState(s => ({
+      milestoneCompletedModalOpen: true,
+      milestones: s.milestones.map(m => m.id === s.currentMilestoneId ? { ...m, status: 'completed' } : m)
+    }));
+  };
+
+  const handleMilestoneProceed = () => {
+    useLabStore.setState({ milestoneCompletedModalOpen: false });
     proceedToNextMilestone();
   };
+
+  const currentMilestone = milestones.find(m => m.id === currentMilestoneId);
 
   return (
     <div className="lab-root">
@@ -110,6 +139,16 @@ export default function Lab() {
           <QuizModal
             onComplete={handleQuizComplete}
             onClose={closeQuiz}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Milestone Complete Modal */}
+      <AnimatePresence>
+        {milestoneCompletedModalOpen && (
+          <MilestoneCompleteModal
+            milestone={currentMilestone}
+            onProceed={handleMilestoneProceed}
           />
         )}
       </AnimatePresence>

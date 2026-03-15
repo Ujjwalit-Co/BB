@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown, Sun, Moon } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
 export default function LabHeader() {
   const { projectName, credits, runCode, saveProject, saveFlash, profileMenuOpen, toggleProfileMenu, closeProfileMenu } = useLabStore();
   const menuRef = useRef(null);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true;
+  });
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -17,6 +21,17 @@ export default function LabHeader() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [closeProfileMenu]);
+
+  // Theme toggle
+  useEffect(() => {
+    const root = window.document.documentElement;
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [isDark]);
 
   return (
     <header className="lab-header">
@@ -38,6 +53,14 @@ export default function LabHeader() {
         <button className={`lab-btn lab-btn-secondary ${saveFlash ? 'lab-btn-saved' : ''}`} onClick={saveProject}>
           {saveFlash ? <Check size={14} className="lab-save-check" /> : <Save size={14} />}
           <span>{saveFlash ? 'Saved' : 'Save'}</span>
+        </button>
+
+        <button
+          onClick={() => setIsDark(!isDark)}
+          className="lab-btn lab-btn-secondary"
+          title={isDark ? 'Light mode' : 'Dark mode'}
+        >
+          {isDark ? <Sun size={14} /> : <Moon size={14} />}
         </button>
 
         {/* Profile Dropdown */}

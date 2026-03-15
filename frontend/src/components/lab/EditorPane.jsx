@@ -1,26 +1,53 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { X, Terminal as TerminalIcon, Eye, ExternalLink, ChevronsDown, ChevronsUp } from 'lucide-react';
 import { FileIcon } from './fileIcons.jsx';
 import Editor from '../Editor';
 import useLabStore from '../../store/useLabStore';
+
+// Helper to debounce iframe updates
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function EditorPane() {
   const {
     files, openTabs, activeFileId, closeTab, openFile,
     updateFileContent, getActiveFile, getCompiledPreview,
     bottomPanelTab, setBottomPanelTab, bottomPanelOpen, toggleBottomPanel,
-    consoleLogs
+    consoleLogs, addConsoleLog
   } = useLabStore();
 
   const iframeRef = useRef(null);
   const activeFile = getActiveFile();
   const tabFiles = openTabs.map(id => files.find(f => f.id === id)).filter(Boolean);
 
+  // Debounce the preview HTML by 600ms to prevent constant flashing while typing
+  const livePreviewHtml = getCompiledPreview();
+  const debouncedHtml = useDebounce(livePreviewHtml, 600);
+
+  // Listen for console messages from the iframe
+  useEffect(() => {
+    const handleMessage = (e) => {
+      if (e.data && e.data.type === 'CONSOLE') {
+        addConsoleLog(e.data.args.join(' '), e.data.level);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [addConsoleLog]);
+
   const handleOpenPreviewTab = () => {
     const html = getCompiledPreview();
     const blob = new Blob([html], { type: 'text/html' });
     window.open(URL.createObjectURL(blob), '_blank');
   };
+
+  const hasHtmlFile = files.some(f => f.name.endsWith('.html'));
 
   // VS Code-style status dot color
   const getTabDotClass = (file) => {
@@ -65,7 +92,9 @@ export default function EditorPane() {
       <div className="lab-editor-area">
         {activeFile ? (
           <Editor
+            key={activeFile.id}
             code={activeFile.content}
+            language={activeFile.language}
             onChange={(val) => updateFileContent(activeFile.id, val)}
           />
         ) : (
@@ -90,14 +119,16 @@ export default function EditorPane() {
             <span className="lab-bottom-badge">{consoleLogs.length}</span>
           )}
         </button>
-        <button
-          className={`lab-bottom-tab-btn ${bottomPanelTab === 'preview' ? 'active' : ''}`}
-          onClick={() => { setBottomPanelTab('preview'); if (!bottomPanelOpen) toggleBottomPanel(); }}
-        >
-          <Eye size={13} />
-          <span>Preview</span>
-        </button>
-        {bottomPanelTab === 'preview' && (
+        {hasHtmlFile && (
+          <button
+            className={`lab-bottom-tab-btn ${bottomPanelTab === 'preview' ? 'active' : ''}`}
+            onClick={() => { setBottomPanelTab('preview'); if (!bottomPanelOpen) toggleBottomPanel(); }}
+          >
+            <Eye size={13} />
+            <span>Preview</span>
+          </button>
+        )}
+        {hasHtmlFile && bottomPanelTab === 'preview' && (
           <button className="lab-bottom-tab-btn lab-bottom-external" onClick={handleOpenPreviewTab} title="Open in new tab">
             <ExternalLink size={13} />
           </button>
@@ -107,30 +138,28 @@ export default function EditorPane() {
       {/* Bottom Panel Content */}
       {bottomPanelOpen && (
         <div className="lab-bottom-panel">
-          {bottomPanelTab === 'console' ? (
-            <div className="lab-console">
-              {consoleLogs.length === 0 ? (
-                <div className="lab-console-empty">No output yet. Click Run to execute.</div>
-              ) : (
-                consoleLogs.map((log, idx) => (
-                  <div key={idx} className={`lab-console-line lab-console-${log.type}`}>
-                    <span className="lab-console-time">{log.timestamp}</span>
-                    <span className="lab-console-text">{log.text}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="lab-preview">
-              <iframe
-                ref={iframeRef}
-                title="Live Preview"
-                className="lab-preview-iframe"
-                srcDoc={getCompiledPreview()}
-                sandbox="allow-scripts"
-              />
-            </div>
-          )}
+          <div className="lab-console" style={{ display: bottomPanelTab === 'console' ? 'block' : 'none' }}>
+            {consoleLogs.length === 0 ? (
+              <div className="lab-console-empty">No output yet. Click Run or type code to execute.</div>
+            ) : (
+              consoleLogs.map((log, idx) => (
+                <div key={idx} className={`lab-console-line lab-console-${log.type}`}>
+                  <span className="lab-console-time">{log.timestamp}</span>
+                  <span className="lab-console-text">{log.text}</span>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <div className="lab-preview" style={{ display: (bottomPanelTab === 'preview' && hasHtmlFile) ? 'block' : 'none' }}>
+            <iframe
+              ref={iframeRef}
+              title="Live Preview"
+              className="lab-preview-iframe"
+              srcDoc={debouncedHtml}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
         </div>
       )}
     </div>

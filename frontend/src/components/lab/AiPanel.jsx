@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { ChevronsRight, Send, Check, X, Sparkles, ArrowRight, HelpCircle } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { ChevronsRight, Send, Check, X, Sparkles, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
 export default function AiPanel() {
@@ -7,11 +7,19 @@ export default function AiPanel() {
     aiMessages, aiSuggestion, isAiThinking,
     toggleRightSidebar, acceptAiSuggestion, rejectAiSuggestion,
     addAiUserMessage, milestones, currentMilestoneId,
-    proceedToNextMilestone, showQuiz
+    proceedToNextMilestone, showQuiz,
+    insufficientCreditsError, setInsufficientCreditsError
   } = useLabStore();
 
   const [input, setInput] = useState('');
   const chatEndRef = useRef(null);
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aiMessages, isAiThinking]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -128,6 +136,20 @@ export default function AiPanel() {
 
         <div ref={chatEndRef} />
       </div>
+
+      {/* Insufficient Credits Error Toast */}
+      {insufficientCreditsError && (
+        <div className="lab-credits-error-toast">
+          <div className="lab-credits-error-content">
+            <X size={16} className="lab-credits-error-close" onClick={() => setInsufficientCreditsError(false)} />
+            <div className="lab-credits-error-message">
+              <AlertTriangle size={16} className="lab-credits-error-icon" />
+              <span>Insufficient credits</span>
+            </div>
+          </div>
+          <p className="lab-credits-error-text">You need at least 2 credits to ask a question.</p>
+        </div>
+      )}
 
       {/* Chat Input */}
       <div className="lab-ai-input-wrap">
