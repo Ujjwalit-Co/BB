@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Terminal as TerminalIcon, Eye, ExternalLink, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { X, Terminal as TerminalIcon, Eye, ExternalLink, ChevronsDown, ChevronsUp, Trash2, Play } from 'lucide-react';
 import { FileIcon } from './fileIcons.jsx';
 import Editor from '../Editor';
 import useLabStore from '../../store/useLabStore';
@@ -19,12 +19,18 @@ export default function EditorPane() {
     files, openTabs, activeFileId, closeTab, openFile,
     updateFileContent, getActiveFile, getCompiledPreview,
     bottomPanelTab, setBottomPanelTab, bottomPanelOpen, toggleBottomPanel,
-    consoleLogs, addConsoleLog
+    consoleLogs, addConsoleLog, clearConsoleLogs
   } = useLabStore();
 
   const iframeRef = useRef(null);
+  const inputRef = useRef(null);
+  const logsEndRef = useRef(null);
   const activeFile = getActiveFile();
   const tabFiles = openTabs.map(id => files.find(f => f.id === id)).filter(Boolean);
+
+  const [consoleInput, setConsoleInput] = useState('');
+  const [commandHistory, setCommandHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   // Debounce the preview HTML by 600ms to prevent constant flashing while typing
   const livePreviewHtml = getCompiledPreview();
@@ -34,12 +40,117 @@ export default function EditorPane() {
   useEffect(() => {
     const handleMessage = (e) => {
       if (e.data && e.data.type === 'CONSOLE') {
-        addConsoleLog(e.data.args.join(' '), e.data.level);
+        // Use functional update to avoid stale closure
+        useLabStore.getState().addConsoleLog(e.data.args.join(' '), e.data.level);
+      } else if (e.data && e.data.type === 'CONSOLE_CLEAR') {
+        // Clear console when iframe calls console.clear()
+        useLabStore.getState().clearConsoleLogs();
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [addConsoleLog]);
+  }, []);
+
+  // Auto-scroll console to bottom when new logs arrive
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [consoleLogs]);
+
+  // Handle console command execution with persistent context
+  const handleExecuteCommand = (e) => {
+    e?.preventDefault();
+    if (!consoleInput.trim()) return;
+
+    const command = consoleInput.trim();
+    
+    // Add command to history
+    setCommandHistory(prev => [...prev, command]);
+    setHistoryIndex(-1);
+
+    // Log the command
+    addConsoleLog(`> ${command}`, 'command');
+
+    // Execute the command and capture any console output
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const capturedOutputs = [];
+    
+    // Override console methods to capture output
+    const capture = (level) => (...args) => {
+      capturedOutputs.push({ level, text: args.join(' ') });
+      originalLog(...args); // Also log to browser console
+    };
+    
+    console.log = capture('log');
+    console.warn = capture('warning');
+    console.error = capture('error');
+
+    try {
+      // Use window.__consoleCtx as persistent storage for variables
+      if (!window.__consoleCtx) window.__consoleCtx = {};
+      
+      // Add overridden console to context so eval can access it
+      window.__consoleCtx.console = console;
+      
+      // Transform let/const to var so variables persist in the with scope
+      const transformed = command
+        .replace(/^\s*let\s+/gm, 'var ')
+        .replace(/^\s*const\s+/gm, 'var ');
+      
+      // Execute code with console in context
+      // eslint-disable-next-line no-new-func
+      const execute = new Function('ctx', 'cmd', `
+        with (ctx) {
+          return eval(cmd);
+        }
+      `);
+      
+      const result = execute(window.__consoleCtx, transformed);
+      
+      // Restore console methods
+      console.log = originalLog;
+      console.warn = originalWarn;
+      console.error = originalError;
+      
+      // Show captured console outputs
+      capturedOutputs.forEach(({ level, text }) => {
+        addConsoleLog(text, level);
+      });
+      
+      // Only log the return value if it's meaningful and not from console
+      if (result !== undefined && capturedOutputs.length === 0) {
+        addConsoleLog(String(result), 'log');
+      }
+    } catch (error) {
+      // Restore console methods
+      console.log = originalLog;
+      console.warn = originalWarn;
+      console.error = originalError;
+      addConsoleLog(error.message, 'error');
+    }
+
+    setConsoleInput('');
+  };
+
+  // Handle arrow keys for command history
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        setHistoryIndex(newIndex);
+        setConsoleInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+      }
+    } else if (e.key === 'ArrowDown' && !e.shiftKey) {
+      e.preventDefault();
+      if (historyIndex >= 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setConsoleInput(newIndex < 0 ? '' : commandHistory[commandHistory.length - 1 - newIndex] || '');
+      }
+    }
+  };
 
   const handleOpenPreviewTab = () => {
     const html = getCompiledPreview();
@@ -139,16 +250,45 @@ export default function EditorPane() {
       {bottomPanelOpen && (
         <div className="lab-bottom-panel">
           <div className="lab-console" style={{ display: bottomPanelTab === 'console' ? 'block' : 'none' }}>
-            {consoleLogs.length === 0 ? (
-              <div className="lab-console-empty">No output yet. Click Run or type code to execute.</div>
-            ) : (
-              consoleLogs.map((log, idx) => (
-                <div key={idx} className={`lab-console-line lab-console-${log.type}`}>
-                  <span className="lab-console-time">{log.timestamp}</span>
-                  <span className="lab-console-text">{log.text}</span>
-                </div>
-              ))
-            )}
+            <div className="lab-console-header">
+              <span className="lab-console-title">Console</span>
+              <button 
+                className="lab-console-clear-btn" 
+                onClick={clearConsoleLogs}
+                title="Clear console"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+            <div className="lab-console-logs">
+              {consoleLogs.length === 0 ? (
+                <div className="lab-console-empty">No output yet. Click Run or type a command below.</div>
+              ) : (
+                consoleLogs.map((log, idx) => (
+                  <div key={idx} className={`lab-console-line lab-console-${log.type}`}>
+                    <span className="lab-console-time">{log.timestamp}</span>
+                    <span className="lab-console-text">{log.text}</span>
+                  </div>
+                ))
+              )}
+              <div ref={logsEndRef} />
+            </div>
+            <form className="lab-console-input-form" onSubmit={handleExecuteCommand}>
+              <span className="lab-console-prompt">&gt;</span>
+              <input
+                ref={inputRef}
+                type="text"
+                className="lab-console-input"
+                value={consoleInput}
+                onChange={(e) => setConsoleInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter JavaScript command..."
+                autoComplete="off"
+              />
+              <button type="submit" className="lab-console-run-btn" title="Run command (Enter)">
+                <Play size={12} />
+              </button>
+            </form>
           </div>
           
           <div className="lab-preview" style={{ display: (bottomPanelTab === 'preview' && hasHtmlFile) ? 'block' : 'none' }}>

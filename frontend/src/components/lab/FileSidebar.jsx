@@ -180,53 +180,48 @@ export default function FileSidebar() {
                     {milestone.steps.map(step => {
                       const isAssessment = step.title.toLowerCase().includes('assessment');
                       
-                      if (isAssessment && step.status === 'active') {
-                        return (
-                          <li key={step.id} className="lab-step-wrap active">
-                            <button className="lab-btn lab-btn-assessment" onClick={() => completeStep(step.id)}>
-                              <Sparkles size={12} />
-                              <span>Take Assessment</span>
-                            </button>
-                          </li>
-                        );
-                      }
-
                       return (
-                      <li key={step.id} className={`lab-step-wrap ${step.status}`}>
-                        <div className="lab-step">
-                          {step.status === 'active' ? (
-                            <button
-                              className="lab-step-complete-btn"
-                              onClick={() => completeStep(step.id)}
-                              title="Mark Verified & Complete"
-                            >
-                              {getStepIcon(step.status, false)}
-                            </button>
-                          ) : (
-                            getStepIcon(step.status, isAssessment)
-                          )}
-                          <span>{step.title}</span>
-                        </div>
+                        <li key={step.id} className={`lab-step-wrap ${step.status} ${step.status === 'active' ? 'active' : ''}`}>
+                          <div className="lab-step">
+                            {step.status === 'active' ? (
+                              <button
+                                className="lab-step-complete-btn"
+                                onClick={() => completeStep(step.id)}
+                                title="Mark Verified & Complete"
+                              >
+                                {getStepIcon(step.status, false)}
+                              </button>
+                            ) : (
+                              getStepIcon(step.status, isAssessment)
+                            )}
+                            <span>{step.title}</span>
+                          </div>
 
-                        {/* Hover Actions for regular steps */}
-                        {step.status === 'active' && !isAssessment && (
-                          <div className="lab-step-actions">
-                            <button className="lab-step-guide-btn" onClick={() => triggerGuideForStep(step.id)}>
-                              <Sparkles size={12} /> Generate Guide
-                            </button>
-                          </div>
-                        )}
-                        
-                        {/* Retake button for completed assessments - always visible */}
-                        {isAssessment && step.status === 'completed' && (
-                          <div className="lab-step-actions lab-step-actions-visible">
-                            <button className="lab-step-guide-btn" onClick={() => completeStep(step.id)} title="Retake Assessment">
-                              Retake Test
-                            </button>
-                          </div>
-                        )}
-                      </li>
-                    )})}
+                          {/* Step Actions */}
+                          {(step.status === 'active' || (isAssessment && step.status === 'completed')) && (
+                            <div className={`lab-step-actions ${isAssessment && step.status === 'completed' ? 'lab-step-actions-visible' : ''}`}>
+                              {isAssessment && step.status === 'active' && (
+                                <button className="lab-step-guide-btn primary" onClick={() => completeStep(step.id)}>
+                                  <Sparkles size={11} /> Take Assessment
+                                </button>
+                              )}
+                              
+                              {!isAssessment && step.status === 'active' && (
+                                <button className="lab-step-guide-btn" onClick={() => triggerGuideForStep(step.id)}>
+                                  <Sparkles size={11} /> Generate Guide
+                                </button>
+                              )}
+                              
+                              {isAssessment && step.status === 'completed' && (
+                                <button className="lab-step-guide-btn" onClick={() => completeStep(step.id)} title="Retake Assessment">
+                                  Retake Test
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </li>

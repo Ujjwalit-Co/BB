@@ -264,6 +264,7 @@ const useLabStore = create((set, get) => ({
 
   // Console
   consoleLogs: [],
+  consoleContext: {}, // Persistent context for variables across commands
 
   // AI Chat
   aiMessages: [],
@@ -409,6 +410,20 @@ const useLabStore = create((set, get) => ({
       timestamp: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
     }]
   })),
+
+  clearConsoleLogs: () => set({ consoleLogs: [] }),
+
+  runConsoleCommand: (command) => {
+    // Execute JavaScript in global scope - variables persist naturally
+    try {
+      // Use direct eval which executes in the caller's scope
+      // This means variables declared with var will be global
+      // eslint-disable-next-line no-eval
+      return eval(command);
+    } catch (error) {
+      throw error;
+    }
+  },
 
   // Run "code" — compiles preview + console output
   runCode: () => {
@@ -592,7 +607,8 @@ const useLabStore = create((set, get) => ({
           const originalLog = console.log;
           const originalWarn = console.warn;
           const originalError = console.error;
-          
+          const originalClear = console.clear;
+
           console.log = function(...args) {
             originalLog.apply(console, args);
             window.parent.postMessage({ type: 'CONSOLE', level: 'log', args: args.map(String) }, '*');
@@ -605,7 +621,11 @@ const useLabStore = create((set, get) => ({
             originalError.apply(console, args);
             window.parent.postMessage({ type: 'CONSOLE', level: 'error', args: args.map(String) }, '*');
           };
-          
+          console.clear = function() {
+            originalClear.apply(console);
+            window.parent.postMessage({ type: 'CONSOLE_CLEAR' }, '*');
+          };
+
           window.onerror = function(message, source, lineno, colno, error) {
             window.parent.postMessage({ type: 'CONSOLE', level: 'error', args: [\`\${message} at line \${lineno}\`] }, '*');
           };
