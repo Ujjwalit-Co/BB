@@ -1,15 +1,63 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown, Sun, Moon, RefreshCcw } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
 export default function LabHeader() {
-  const { projectName, credits, runCode, saveProject, saveFlash, profileMenuOpen, toggleProfileMenu, closeProfileMenu } = useLabStore();
+  const {
+    projectName, credits, smartRun, runCode, saveProject, saveFlash,
+    profileMenuOpen, toggleProfileMenu, closeProfileMenu, resetOnboarding,
+    getActiveFile, activeFileId
+  } = useLabStore();
+  
   const menuRef = useRef(null);
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
   });
+  const [activeFileIdSub, setActiveFileIdSub] = useState(activeFileId);
+
+  // Subscribe to activeFileId changes to trigger re-renders
+  useEffect(() => {
+    setActiveFileIdSub(activeFileId);
+  }, [activeFileId]);
+
+  // Get active file to determine run button label
+  const activeFile = getActiveFile();
+  
+  // Determine run button label and icon based on active file
+  const getRunButtonConfig = () => {
+    if (!activeFile) {
+      return { label: 'Run Project', icon: Play, onClick: runCode };
+    }
+    
+    const fileName = activeFile.name.toLowerCase();
+    const language = activeFile.language;
+    
+    // Python files
+    if (language === 'python' || fileName.endsWith('.py')) {
+      return { label: 'Run Python', icon: Play, onClick: smartRun };
+    }
+    
+    // JavaScript/TypeScript files
+    if (['javascript', 'typescript'].includes(language) || 
+        fileName.endsWith('.js') || fileName.endsWith('.ts') ||
+        fileName.endsWith('.jsx') || fileName.endsWith('.tsx')) {
+      return { label: 'Run JS', icon: Play, onClick: smartRun };
+    }
+    
+    // HTML/CSS files - run full project
+    if (language === 'html' || language === 'css' ||
+        fileName.endsWith('.html') || fileName.endsWith('.css')) {
+      return { label: 'Run Project', icon: Play, onClick: runCode };
+    }
+    
+    // Default
+    return { label: 'Run', icon: Play, onClick: smartRun };
+  };
+
+  const runButtonConfig = getRunButtonConfig();
+  const RunIcon = runButtonConfig.icon;
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -45,9 +93,13 @@ export default function LabHeader() {
       </div>
 
       <div className="lab-header-right">
-        <button className="lab-btn lab-btn-run" onClick={runCode}>
-          <Play size={14} />
-          <span>Run</span>
+        <button 
+          className="lab-btn lab-btn-run" 
+          onClick={runButtonConfig.onClick}
+          title={activeFile ? `Run ${activeFile.name}` : 'Run full project'}
+        >
+          <RunIcon size={14} />
+          <span>{runButtonConfig.label}</span>
         </button>
 
         <button className={`lab-btn lab-btn-secondary ${saveFlash ? 'lab-btn-saved' : ''}`} onClick={saveProject}>
@@ -92,6 +144,10 @@ export default function LabHeader() {
                 <Settings size={14} />
                 <span>Project Settings</span>
               </Link>
+              <button className="lab-profile-item" onClick={() => { resetOnboarding(); closeProfileMenu(); }}>
+                <RefreshCcw size={14} />
+                <span>Reset Environment</span>
+              </button>
               <div className="lab-profile-sep" />
               <Link to="/" className="lab-profile-item lab-profile-logout" onClick={closeProfileMenu}>
                 <LogOut size={14} />

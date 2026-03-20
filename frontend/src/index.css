@@ -1191,6 +1191,39 @@
   flex-shrink: 0;
 }
 
+.lab-console-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lab-console-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--lab-border);
+  border-radius: 4px;
+  color: var(--lab-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lab-console-mode-btn:hover {
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+  border-color: var(--lab-accent);
+}
+
+.lab-console-mode-btn.active {
+  background: var(--lab-accent);
+  color: white;
+  border-color: var(--lab-accent);
+}
+
 .lab-console-title {
   font-weight: 600;
   font-size: 11px;
@@ -2055,6 +2088,8 @@
 .lab-sidebar-right,
 .lab-console,
 .lab-ai-chat,
+.lab-ai-input,
+.lab-ai-input-sleek,
 .lab-editor-area .cm-scroller {
   scrollbar-width: thin;
   scrollbar-color: var(--lab-border) transparent;
@@ -2064,6 +2099,8 @@
 .lab-sidebar-right::-webkit-scrollbar,
 .lab-console::-webkit-scrollbar,
 .lab-ai-chat::-webkit-scrollbar,
+.lab-ai-input::-webkit-scrollbar,
+.lab-ai-input-sleek::-webkit-scrollbar,
 .lab-editor-area .cm-scroller::-webkit-scrollbar {
   width: 5px;
 }
@@ -2072,6 +2109,8 @@
 .lab-sidebar-right::-webkit-scrollbar-thumb,
 .lab-console::-webkit-scrollbar-thumb,
 .lab-ai-chat::-webkit-scrollbar-thumb,
+.lab-ai-input::-webkit-scrollbar-thumb,
+.lab-ai-input-sleek::-webkit-scrollbar-thumb,
 .lab-editor-area .cm-scroller::-webkit-scrollbar-thumb {
   background: var(--lab-border);
   border-radius: 3px;
@@ -2081,11 +2120,61 @@
 .lab-sidebar-right::-webkit-scrollbar-track,
 .lab-console::-webkit-scrollbar-track,
 .lab-ai-chat::-webkit-scrollbar-track,
+.lab-ai-input::-webkit-scrollbar-track,
+.lab-ai-input-sleek::-webkit-scrollbar-track,
 .lab-editor-area .cm-scroller::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.lab-ai-input-sleek {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}
+
+.lab-ai-input-sleek:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
 }
 
 /* ───── Sidebar overflow scroll ───── */
 .lab-sidebar-left {
   overflow-y: auto;
+
+}
+
+/* ───── Loading Spinner (Google/Windows style) ───── */
+
+@keyframes google-rotate {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes google-dash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
+
+.lab-loading-spinner {
+  width: 50px;
+  height: 50px;
+  animation: google-rotate 2s linear infinite;
+}
+
+.lab-loading-spinner circle {
+  fill: none;
+  stroke: var(--lab-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  animation: google-dash 1.5s ease-in-out infinite;
+}
+
+.lab-loading-spinner-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2.5rem;
 }

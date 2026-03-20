@@ -7,13 +7,27 @@ export default function MilestoneCompleteModal({ milestone, onProceed }) {
   if (!milestone) return null;
 
   return (
-    <div className="lab-modal-overlay">
+    <motion.div 
+      className="lab-modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{ backdropFilter: 'none', background: 'rgba(0,0,0,0.4)' }}
+    >
       <motion.div
-        className="lab-quiz-modal"
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-        style={{ maxWidth: 400, padding: 32 }}
+        exit={{ opacity: 0, scale: 0.98, y: -10 }}
+        style={{ 
+          width: '100%',
+          maxWidth: 400, 
+          background: 'var(--lab-surface)', 
+          border: '1px solid var(--lab-border)',
+          borderRadius: 'var(--lab-radius)',
+          boxShadow: 'var(--lab-shadow-lg)',
+          padding: 32,
+          position: 'relative'
+        }}
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--lab-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
@@ -39,12 +53,12 @@ export default function MilestoneCompleteModal({ milestone, onProceed }) {
 
         <button 
           className="lab-btn lab-btn-run" 
-          style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}
+          style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 14 }}
           onClick={onProceed}
         >
           Move Forward <ArrowRight size={16} />
         </button>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

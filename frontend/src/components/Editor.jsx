@@ -5,15 +5,20 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
+import { python } from '@codemirror/lang-python';
 import { bracketMatching, indentOnInput, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { vscodeDark, vscodeLight } from '@uiw/codemirror-theme-vscode';
+import { Sparkles } from 'lucide-react';
+import useLabStore from '../store/useLabStore';
 
 export default function Editor({ code, onChange, language = 'javascript', readOnly = false }) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
+  const { setAiInput, toggleRightSidebar, rightSidebarOpen } = useLabStore();
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [selection, setSelection] = useState({ visible: false, x: 0, y: 0, text: '' });
 
   // Sync theme with document class
   useEffect(() => {
@@ -55,7 +60,7 @@ export default function Editor({ code, onChange, language = 'javascript', readOn
         crosshairCursor(),
         highlightActiveLine(),
         highlightSelectionMatches(),
-        language === 'html' ? html() : language === 'css' ? css() : javascript({ jsx: true }),
+        language === 'python' ? python() : language === 'html' ? html() : language === 'css' ? css() : javascript({ jsx: true }),
         themeBase,
         EditorView.editable.of(!readOnly),
         keymap.of([
@@ -68,6 +73,24 @@ export default function Editor({ code, onChange, language = 'javascript', readOn
         EditorView.updateListener.of((update) => {
           if (update.docChanged && onChange) {
             onChange(update.state.doc.toString());
+          }
+          
+          if (update.selectionSet) {
+            const range = update.state.selection.main;
+            if (range.empty) {
+              setSelection(prev => ({ ...prev, visible: false }));
+            } else {
+              const text = update.state.doc.sliceString(range.from, range.to);
+              const rect = update.view.coordsAtPos(range.to);
+              if (rect) {
+                setSelection({
+                  visible: true,
+                  x: rect.left,
+                  y: rect.top - 35,
+                  text
+                });
+              }
+            }
           }
         }),
         EditorView.theme({
@@ -115,6 +138,25 @@ export default function Editor({ code, onChange, language = 'javascript', readOn
     }
   }, [code]);
 
-  return <div className={`h-full w-full overflow-hidden transition-colors ${isDark ? 'bg-[#0d0d0d]' : 'bg-[#f3f3f1]'}`} ref={editorRef} />;
-}
+  const handleSendToAi = (e) => {
+    e.stopPropagation();
+    setAiInput(`Explain this code:\n\n\`\`\`${language}\n${selection.text}\n\`\`\``);
+    if (!rightSidebarOpen) toggleRightSidebar();
+    setSelection(prev => ({ ...prev, visible: false }));
+  };
 
+  return (
+    <div className={`relative h-full w-full overflow-hidden transition-colors ${isDark ? 'bg-[#0d0d0d]' : 'bg-[#f3f3f1]'}`} ref={editorRef}>
+      {selection.visible && (
+        <button
+          className="fixed z-50 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-bold shadow-xl shadow-indigo-600/30 animate-in fade-in zoom-in duration-200 hover:bg-indigo-500 hover:-translate-y-0.5 active:scale-95 transition-all"
+          style={{ left: selection.x, top: selection.y }}
+          onClick={handleSendToAi}
+        >
+          <Sparkles size={12} />
+          <span>Ask AI</span>
+        </button>
+      )}
+    </div>
+  );
+}

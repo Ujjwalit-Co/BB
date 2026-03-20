@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { AIResponse } from '../services/aiModels';
 
 const DEMO_FILES = [
   {
@@ -156,6 +157,71 @@ body {
 </body>
 </html>`,
   },
+  {
+    id: 'f5',
+    name: 'data_analysis.py',
+    language: 'python',
+    isDirty: false,
+    status: 'clean',
+    content: `# Weather Data Analysis in Python
+# Run this file in the Python console!
+
+def analyze_temperatures(temp_list):
+    """Analyze a list of temperatures."""
+    if not temp_list:
+        return "No data provided"
+    
+    avg_temp = sum(temp_list) / len(temp_list)
+    max_temp = max(temp_list)
+    min_temp = min(temp_list)
+    
+    return {
+        'average': round(avg_temp, 2),
+        'max': max_temp,
+        'min': min_temp,
+        'count': len(temp_list)
+    }
+
+# Example usage:
+temperatures = [15, 18, 22, 19, 16, 21, 23]
+result = analyze_temperatures(temperatures)
+print(f"Temperature Analysis: {result}")`,
+  },
+  {
+    id: 'f6',
+    name: 'utils.py',
+    language: 'python',
+    isDirty: false,
+    status: 'clean',
+    content: `# Utility functions for weather processing
+
+def celsius_to_fahrenheit(celsius):
+    """Convert Celsius to Fahrenheit."""
+    return (celsius * 9/5) + 32
+
+def fahrenheit_to_celsius(fahrenheit):
+    """Convert Fahrenheit to Celsius."""
+    return (fahrenheit - 32) * 5/9
+
+def classify_weather(temp, condition):
+    """Classify weather based on temperature and condition."""
+    if temp < 0:
+        return "Freezing"
+    elif temp < 10:
+        return "Cold"
+    elif temp < 20:
+        return "Cool"
+    elif temp < 30:
+        return "Warm"
+    else:
+        return "Hot"
+
+# Quick test
+if __name__ == "__main__":
+    print(f"25°C = {celsius_to_fahrenheit(25)}°F")
+    print(f"77°F = {fahrenheit_to_celsius(77)}°C")
+    print(f"Weather classification: {classify_weather(25, 'sunny')}")`,
+  },
 ];
 
 const DEMO_MILESTONES = [
@@ -248,6 +314,9 @@ const useLabStore = create((set, get) => ({
   // Economy & AI State
   credits: 20,
   isAiThinking: false,
+  isLabLoading: false,
+  loadingProgress: 0,
+  loadingStatus: '',
 
   // UI State
   leftSidebarOpen: true,
@@ -261,41 +330,93 @@ const useLabStore = create((set, get) => ({
   fileToDelete: null, // id of file to delete (shows modal)
   livePreviewHtml: '', // only updates on Run or Save
   insufficientCreditsError: false, // shown when credits < 2
+  showOnboarding: false,
+  userEnvironment: null,
 
   // Console
-  consoleLogs: [],
   consoleContext: {}, // Persistent context for variables across commands
+  isPyodideLoading: false, // Pyodide loading state
+  pyodide: null, // Pyodide instance
 
   // AI Chat
   aiMessages: [],
   aiSuggestion: null,
+  aiInput: '',
 
   // --- ACTIONS ---
 
-  initDemoProject: () => set({
-    projectId: 'demo',
-    projectName: 'Weather AI App',
-    files: DEMO_FILES,
-    milestones: DEMO_MILESTONES,
-    currentMilestoneId: 'm1',
-    openTabs: ['f1', 'f2'],
-    activeFileId: 'f1',
-    credits: 20,
-    consoleLogs: [],
-    aiMessages: DEMO_AI_MESSAGES,
-    aiSuggestion: DEMO_AI_SUGGESTION,
-    leftSidebarOpen: true,
-    rightSidebarOpen: true,
-    bottomPanelOpen: true,
-    bottomPanelTab: 'console',
-    quizOpen: false,
-    profileMenuOpen: false,
-    saveFlash: false,
-    newFileDialogOpen: false,
-    fileToDelete: null,
-    livePreviewHtml: '',
-    insufficientCreditsError: false,
-  }),
+  setAiInput: (input) => set({ aiInput: input }),
+
+  setUserEnvironment: (env) => {
+    set({ userEnvironment: env, showOnboarding: false });
+    localStorage.setItem('userEnvironment', JSON.stringify(env));
+  },
+
+  resetOnboarding: () => {
+    localStorage.removeItem('userEnvironment');
+    set({ userEnvironment: null, showOnboarding: true });
+  },
+
+  initDemoProject: async () => {
+    set({ isLabLoading: true, loadingStatus: 'Preparing your codebase...', loadingProgress: 5 });
+
+    // Simulate codebase prep
+    await new Promise(r => setTimeout(r, 800));
+    set({ loadingStatus: 'AI is analyzing project complexity...', loadingProgress: 25 });
+
+    // Simulate AI analysis
+    await new Promise(r => setTimeout(r, 800));
+    set({ loadingStatus: 'Synchronizing environment...', loadingProgress: 50 });
+    
+    // Preload Pyodide (Python runtime) and track its progress
+    set({ loadingStatus: 'Initializing Python runtime...', loadingProgress: 60 });
+    try {
+      const { loadPyodide: loadPyo } = await import('pyodide');
+      const pyodideInstance = await loadPyo({
+        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
+      });
+      set({ pyodide: pyodideInstance, loadingProgress: 85 });
+    } catch (error) {
+      console.error('Failed to preload Pyodide:', error);
+    }
+    
+    set({ loadingStatus: 'Finalizing workspace...', loadingProgress: 95 });
+    await new Promise(r => setTimeout(r, 600));
+
+    const savedEnv = localStorage.getItem('userEnvironment');
+    const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
+
+    set({
+      projectId: 'demo',
+      projectName: 'Weather AI App',
+      files: DEMO_FILES,
+      milestones: DEMO_MILESTONES,
+      currentMilestoneId: 'm1',
+      openTabs: ['f1', 'f2'],
+      activeFileId: 'f1',
+      credits: 20,
+      consoleMode: 'javascript',
+      pythonLogs: [],
+      jsLogs: [],
+      aiMessages: DEMO_AI_MESSAGES,
+      aiSuggestion: DEMO_AI_SUGGESTION,
+      leftSidebarOpen: true,
+      rightSidebarOpen: true,
+      bottomPanelOpen: true,
+      bottomPanelTab: 'console',
+      quizOpen: false,
+      profileMenuOpen: false,
+      saveFlash: false,
+      newFileDialogOpen: false,
+      fileToDelete: null,
+      livePreviewHtml: '',
+      insufficientCreditsError: false,
+      isLabLoading: false,
+      loadingProgress: 100,
+      userEnvironment,
+      showOnboarding: !userEnvironment,
+    });
+  },
 
   loadProjectData: (projectData) => set({
     projectId: projectData.id,
@@ -314,7 +435,7 @@ const useLabStore = create((set, get) => ({
     )
   })),
 
-  createFile: (filename) => {
+  createFile: (filename, content = '') => {
     if (!filename || !filename.trim()) return;
     const name = filename.trim();
     const { files, openTabs } = get();
@@ -322,15 +443,15 @@ const useLabStore = create((set, get) => ({
     if (files.some(f => f.name === name)) return;
 
     const ext = name.split('.').pop()?.toLowerCase();
-    const langMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown' };
+    const langMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python' };
     const newId = `f_${++fileCounter}_${Date.now()}`;
     const newFile = {
       id: newId,
       name,
       language: langMap[ext] || 'text',
       isDirty: false,
-      status: 'clean',
-      content: '',
+      status: content ? 'unsaved' : 'clean',
+      content: content,
     };
 
     set({
@@ -352,7 +473,7 @@ const useLabStore = create((set, get) => ({
     if (state.files.some(f => f.name === name && f.id !== id)) return state;
     
     const ext = name.split('.').pop()?.toLowerCase();
-    const langMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown' };
+    const langMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python' };
     
     return {
       files: state.files.map(f => f.id === id ? { ...f, name, language: langMap[ext] || f.language } : f)
@@ -397,21 +518,111 @@ const useLabStore = create((set, get) => ({
   toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
   toggleRightSidebar: () => set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
   toggleBottomPanel: () => set((s) => ({ bottomPanelOpen: !s.bottomPanelOpen })),
+  setBottomPanelOpen: (open) => set({ bottomPanelOpen: open }),
   setBottomPanelTab: (tab) => set({ bottomPanelTab: tab }),
   toggleProfileMenu: () => set((s) => ({ profileMenuOpen: !s.profileMenuOpen })),
   closeProfileMenu: () => set({ profileMenuOpen: false }),
   toggleNewFileDialog: () => set((s) => ({ newFileDialogOpen: !s.newFileDialogOpen })),
 
   // Console
-  addConsoleLog: (text, type = 'log') => set((s) => ({
-    consoleLogs: [...s.consoleLogs, {
+  consoleMode: 'javascript', // 'python' | 'javascript' - tracks which runtime is active
+  pythonLogs: [],
+  jsLogs: [],
+
+  addConsoleLog: (text, type = 'log', mode = null) => set((s) => {
+    // If mode is specified, use that log array; otherwise use current mode
+    const targetMode = mode || s.consoleMode;
+    const logEntry = {
       type,
       text,
       timestamp: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    }]
+    };
+    
+    if (targetMode === 'python') {
+      return { pythonLogs: [...s.pythonLogs, logEntry] };
+    } else {
+      return { jsLogs: [...s.jsLogs, logEntry] };
+    }
+  }),
+
+  clearConsoleLogs: () => set((s) => ({
+    pythonLogs: [],
+    jsLogs: []
   })),
 
-  clearConsoleLogs: () => set({ consoleLogs: [] }),
+  setConsoleMode: (mode) => set({ consoleMode: mode }),
+
+  loadPyodide: async () => {
+    const state = get();
+    // Return immediately if already loaded or loading
+    if (state.pyodide) {
+      console.log('[Pyodide] Already loaded from preload');
+      return state.pyodide;
+    }
+    if (state.isPyodideLoading) {
+      console.log('[Pyodide] Already loading...');
+      return null;
+    }
+
+    set({ isPyodideLoading: true });
+    get().addConsoleLog('Loading Pyodide (Python runtime)...', 'info');
+
+    try {
+      // Dynamically import pyodide from node_modules
+      const { loadPyodide: loadPyo } = await import('pyodide');
+      const pyodideInstance = await loadPyo({
+        // Use the local pyodide package from node_modules
+        indexURL: '/pyodide/',
+      });
+
+      set({ pyodide: pyodideInstance, isPyodideLoading: false });
+      get().addConsoleLog('Python runtime loaded!', 'success');
+      return pyodideInstance;
+    } catch (error) {
+      set({ isPyodideLoading: false });
+      get().addConsoleLog(`Failed to load Pyodide: ${error.message}`, 'error');
+      throw error;
+    }
+  },
+
+  runPythonCode: async (code) => {
+    const state = get();
+    let pyodideInstance = state.pyodide;
+
+    // Load Pyodide if not already loaded
+    if (!pyodideInstance) {
+      pyodideInstance = await get().loadPyodide();
+    }
+
+    if (!pyodideInstance) {
+      get().addConsoleLog('Pyodide not loaded', 'error');
+      return;
+    }
+
+    // Set up stdout capture for print() statements
+    pyodideInstance.setStdout({
+      batched: (output) => {
+        get().addConsoleLog(output, 'log');
+      },
+    });
+
+    try {
+      // Run the Python code
+      const result = await pyodideInstance.runPythonAsync(code);
+      
+      // If there's a return value, display it
+      if (result !== undefined && result !== null) {
+        const resultType = typeof result;
+        if (resultType !== 'function') {
+          get().addConsoleLog(String(result), 'log');
+        }
+      }
+      return result;
+    } catch (error) {
+      get().addConsoleLog(error.message, 'error');
+      throw error;
+    }
+  },
 
   runConsoleCommand: (command) => {
     // Execute JavaScript in global scope - variables persist naturally
@@ -428,10 +639,10 @@ const useLabStore = create((set, get) => ({
   // Run "code" — compiles preview + console output
   runCode: () => {
     const { addConsoleLog, setBottomPanelTab, compilePreviewHtml } = get();
-    set({ bottomPanelOpen: true, consoleLogs: [] });
+    set({ bottomPanelOpen: true, pythonLogs: [], jsLogs: [] });
     setBottomPanelTab('console');
     addConsoleLog('Compiling project...', 'info');
-    
+
     setTimeout(() => {
       const newPreviewHtml = compilePreviewHtml(get());
       set({ livePreviewHtml: newPreviewHtml });
@@ -439,6 +650,82 @@ const useLabStore = create((set, get) => ({
       addConsoleLog('Build completed in 143ms', 'success');
       setTimeout(() => setBottomPanelTab('preview'), 600);
     }, 600);
+  },
+
+  // Smart Run - runs current file based on type
+  smartRun: async () => {
+    const state = get();
+    const activeFile = state.getActiveFile();
+
+    if (!activeFile) {
+      state.addConsoleLog('No file selected. Open a file to run.', 'warning');
+      return;
+    }
+
+    const { addConsoleLog, setBottomPanelTab, setBottomPanelOpen, runPythonCode, runCode, setConsoleMode } = state;
+
+    // Open console/preview panel
+    setBottomPanelOpen(true);
+
+    // Python files - run in Python console
+    if (activeFile.language === 'python' || activeFile.name.endsWith('.py')) {
+      setBottomPanelTab('console');
+      setConsoleMode('python');
+      try {
+        await runPythonCode(activeFile.content);
+      } catch (error) {
+        addConsoleLog(`Python error: ${error.message}`, 'error', 'python');
+      }
+    }
+    // JavaScript/TypeScript files - run in JS console
+    else if (['javascript', 'typescript'].includes(activeFile.language) ||
+             activeFile.name.endsWith('.js') || activeFile.name.endsWith('.ts') ||
+             activeFile.name.endsWith('.jsx') || activeFile.name.endsWith('.tsx')) {
+      setBottomPanelTab('console');
+      setConsoleMode('javascript');
+      try {
+        // Capture console methods
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        console.log = (...args) => addConsoleLog(args.join(' '), 'log', 'javascript');
+        console.warn = (...args) => addConsoleLog(args.join(' '), 'warning', 'javascript');
+        console.error = (...args) => addConsoleLog(args.join(' '), 'error', 'javascript');
+
+        // Transform and execute JS/TS code
+        const transformed = activeFile.content
+          .replace(/^\s*import\s+.*?;/gm, '') // Remove ES6 imports
+          .replace(/^\s*export\s+(default\s+)?/gm, '') // Remove exports
+          .replace(/^\s*let\s+/gm, 'var ')
+          .replace(/^\s*const\s+/gm, 'var ');
+
+        // eslint-disable-next-line no-eval
+        const result = eval(transformed);
+
+        // Restore console methods
+        console.log = originalLog;
+        console.warn = originalWarn;
+        console.error = originalError;
+
+        // Log return value if any
+        if (result !== undefined) {
+          addConsoleLog(String(result), 'log', 'javascript');
+        }
+      } catch (error) {
+        addConsoleLog(error.message, 'error', 'javascript');
+      }
+    }
+    // HTML/CSS files - run full project preview
+    else if (activeFile.language === 'html' || activeFile.language === 'css' ||
+             activeFile.name.endsWith('.html') || activeFile.name.endsWith('.css')) {
+      runCode();
+    }
+    // Unknown file type
+    else {
+      setBottomPanelTab('console');
+      addConsoleLog('File type not supported for execution.', 'warning');
+    }
   },
 
   // AI Operations
@@ -463,29 +750,70 @@ const useLabStore = create((set, get) => ({
     deductCredit(2);
     setAiThinking(true);
 
+    // Simulated AI Response using the new model
     setTimeout(() => {
+      const mockResponse = AIResponse.fromAPI({
+        answer: "I've analyzed your request! I noticed a missing error handler in your API call. I've prepared a surgical fix for you.",
+        suggestedFiles: [
+          {
+            name: 'api.js',
+            action: 'edit',
+            original: "const res = await fetch(url);",
+            replacement: "try {\n  const res = await fetch(url);\n} catch (e) {\n  console.error('API Error:', e);\n}"
+          }
+        ],
+        suggestedCommands: ['npm test']
+      });
+
       set((s) => ({
         aiMessages: [...s.aiMessages, {
           role: 'ai',
-          content: "That's a great question! Let me look at your code and find the best approach. Try adding error boundaries to handle edge cases gracefully."
+          content: mockResponse.answer,
+          responseModel: mockResponse // Store the full model for the UI
         }],
         isAiThinking: false,
       }));
     }, 1500);
   },
 
-  acceptAiSuggestion: () => {
-    const { aiSuggestion, updateFileContent, files } = get();
-    if (!aiSuggestion) return;
-    const file = files.find(f => f.id === aiSuggestion.fileId);
-    if (!file) return;
+  acceptAiSuggestion: (suggestion = null) => {
+    const { aiSuggestion: legacySuggestion, updateFileContent, createFile, deleteFile, files } = get();
+    const target = suggestion || legacySuggestion;
+    if (!target) return;
 
-    const newContent = file.content.replace(aiSuggestion.original, aiSuggestion.replacement);
-    updateFileContent(aiSuggestion.fileId, newContent);
+    // Handle new model or legacy diff
+    let feedbackMessage = 'Changes applied!';
+
+    if (target.action === 'create') {
+      createFile(target.name, target.suggestedCode);
+      feedbackMessage = `File ${target.name} created!`;
+    } else if (target.action === 'delete') {
+      const file = files.find(f => f.name === target.name);
+      if (file) {
+        deleteFile(file.id);
+        feedbackMessage = `File ${target.name} deleted.`;
+      }
+    } else if (target.action === 'edit' || (!target.action && (target.original || target.suggestedCode))) {
+      // Handle either the new model ('target.name') or legacy ('target.fileId')
+      const file = files.find(f => 
+        (target.name && f.name === target.name) || 
+        (target.fileId && f.id === target.fileId)
+      );
+
+      if (file) {
+        // Surgical diff if original/replacement exist, otherwise full replacement
+        const newContent = (target.original && target.replacement) 
+          ? file.content.replace(target.original, target.replacement)
+          : (target.suggestedCode || file.content);
+          
+        updateFileContent(file.id, newContent);
+        feedbackMessage = `Changes applied to ${file.name}!`;
+      }
+    }
 
     set((s) => ({
       aiSuggestion: null,
-      aiMessages: [...s.aiMessages, { role: 'ai', content: 'Change applied! The error handling is now in place.' }]
+      aiMessages: [...s.aiMessages, { role: 'ai', content: feedbackMessage }]
     }));
   },
 

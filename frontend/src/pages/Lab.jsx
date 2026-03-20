@@ -8,6 +8,7 @@ import EditorPane from '../components/lab/EditorPane';
 import AiPanel from '../components/lab/AiPanel';
 import QuizModal from '../components/lab/QuizModal';
 import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
+import OnboardingModal from '../components/lab/OnboardingModal';
 
 function MobileGuard() {
   return (
@@ -30,7 +31,8 @@ export default function Lab() {
     leftSidebarOpen, rightSidebarOpen,
     toggleLeftSidebar, toggleRightSidebar,
     quizOpen, closeQuiz, proceedToNextMilestone,
-    saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId
+    saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId,
+    showOnboarding
   } = useLabStore();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -150,6 +152,13 @@ export default function Lab() {
             milestone={currentMilestone}
             onProceed={handleMilestoneProceed}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Onboarding Modal */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingModal key="onboarding" />
         )}
       </AnimatePresence>
     </div>
