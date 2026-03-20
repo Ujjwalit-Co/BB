@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import SellerPortal from './pages/SellerPortal';
 import Auth from './pages/Auth';
 import Lab from './pages/Lab';
+import CheckoutModal from './components/CheckoutModal';
 
 function AppContent() {
   const location = useLocation();
@@ -32,6 +33,7 @@ function AppContent() {
         </Routes>
       </main>
       <Footer />
+      <CheckoutModal />
     </div>
   );
 }

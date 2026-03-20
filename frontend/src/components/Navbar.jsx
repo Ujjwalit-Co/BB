@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Terminal } from 'lucide-react';
+import useAuthStore from '../store/useAuthStore';
 
 export default function Navbar() {
+  const { user, logout } = useAuthStore();
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
@@ -41,9 +43,23 @@ export default function Navbar() {
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         
-        <Link to="/auth" className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95">
-          Sign In
-        </Link>
+        {user ? (
+          <div className="flex items-center gap-4">
+            <span className="text-slate-700 dark:text-slate-300 hidden md:block">
+              Hi, <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{user.fullName?.split(' ')[0]}</span>
+            </span>
+            <button 
+              onClick={logout}
+              className="bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white px-6 py-2 rounded-full hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 transition-all border border-transparent dark:border-white/5"
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <Link to="/auth" className="bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+            Sign In
+          </Link>
+        )}
       </div>
     </nav>
   );
