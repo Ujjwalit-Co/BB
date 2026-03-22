@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game of Thrones Chess</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Cinzel+Decorative:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --gold: #c9a84c;
+            --gold-light: #e8c060;
+            --gold-dim: #8b6914;
+            --dark-bg: #050507;
+            --panel-bg: rgba(20, 20, 28, 0.75);
+            --card-bg: rgba(30, 30, 40, 0.5);
+            --border-glow: rgba(201, 168, 76, 0.3);
+            --text-main: #e8d5a3;
+            --text-muted: #9a8a6a;
+            --crimson: #8b1a1a;
+            --crimson-bright: #cc2222;
+
+            /* Board Colors */
+            --sq-light: #d4bc96;
+            --sq-dark: #5c4033;
+            --sq-selected: rgba(201, 168, 76, 0.85);
+            --sq-move: rgba(201, 168, 76, 0.4);
+            --sq-capture: rgba(204, 34, 34, 0.55);
+
+            --cell-size: 88px;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--dark-bg);
+            color: var(--text-main);
+            font-family: 'EB Garamond', serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Animated Dynamic Background Overlay */
+        .bg-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 20% 30%, rgba(139, 26, 26, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(201, 168, 76, 0.1) 0%, transparent 40%);
+            filter: blur(80px);
+            animation: bgShift 25s infinite alternate ease-in-out;
+        }
+
+        @keyframes bgShift {
+            0% {
+                transform: scale(1) rotate(0deg);
+            }
+
+            100% {
+                transform: scale(1.15) rotate(5deg);
+            }
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* ── HEADER ─────────────────────────────── */
+        #header {
+            text-align: center;
+            padding: 35px 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        #header h1 {
+            font-family: 'Cinzel Decorative', serif;
+            font-size: clamp(24px, 5vw, 42px);
+            color: var(--gold);
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            text-shadow: 0 0 30px rgba(201, 168, 76, 0.6);
+            margin-bottom: 8px;
+            position: relative;
+            display: inline-block;
+        }
+
+        #header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 10%;
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+        }
+
+        #header p {
+            font-family: 'Cinzel', serif;
+            font-size: 12px;
+            letter-spacing: 4px;
+            color: var(--text-muted);
+            opacity: 0.8;
+        }
+
+        /* ── MAIN LAYOUT ────────────────────────── */
+        #app {
+            display: grid;
+            grid-template-columns: 280px 1fr 260px;
+            gap: 40px;
+            padding: 20px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            align-items: flex-start;
+        }
+
+        /* ── PLAYER COLUMN (Left) ───────────────── */
+        #player-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+        }
+
+        /* ── BOARD CONTAINER (Center) ─────────── */
+        #board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── PLAYER BAR (Glassmorphism) ────────── */
+        .player-bar {
+            width: 100%;
+            background: var(--panel-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(201, 168, 76, 0.2);
+            border-radius: 12px;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: all var(--transition-speed);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .player-bar.active-bar {
+            border-color: var(--gold);
+            box-shadow: 0 0 25px rgba(201, 168, 76, 0.3);
+            transform: scale(1.02);
+            background: rgba(40, 40, 50, 0.85);
+        }
+
+        .player-bar .player-name {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Cinzel', serif;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--gold-light);
+            border-bottom: 1px solid rgba(201, 168, 76, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .player-right {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .color-dot.white {
+            background: #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+        }
+
+        .color-dot.black {
+            background: #222;
+            border-color: rgba(201, 168, 76, 0.4);
+        }
+
+        .timer {
+            font-family: 'Cinzel', serif;
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 2px;
+            text-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .timer.ok {
+            color: var(--gold-light);
+        }
+
+        .timer.warn {
+            color: var(--gold);
+            text-shadow: 0 0 10px var(--gold);
+        }
+
+        .timer.urgent {
+            color: var(--crimson-bright);
+            animation: pulse-red 1s infinite;
+        }
+
+        @keyframes pulse-red {
+
+            0%,
+            100% {
+                opacity: 1;
+                text-shadow: 0 0 15px var(--crimson-bright);
+            }
+
+            50% {
+                opacity: 0.7;
+                text-shadow: 0 0 5px var(--crimson-bright);
+            }
+        }
+
+        .illegal-indicators {
+            display: flex;
+            gap: 6px;
+        }
+
+        .ill-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s;
+        }
+
+        .ill-dot.warn {
+            background: var(--gold);
+            box-shadow: 0 0 8px var(--gold);
+        }
+
+        .ill-dot.danger {
+            background: var(--crimson-bright);
+            box-shadow: 0 0 10px var(--crimson-bright);
+        }
+
+        .captured-bar {
+            opacity: 0.9;
+        }
+
+        /* ── BOARD WRAPPER ──────────────────────── */
+        #board-wrapper {
+            background: #1a1a1e;
+            padding: 12px;
+            border: 3px solid var(--gold);
+            border-radius: 8px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.8),
+                inset 0 0 40px rgba(0, 0, 0, 0.6);
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        /* corner dots / ornaments */
+        #board-wrapper::before,
+        #board-wrapper::after {
+            content: '✦';
+            position: absolute;
+            color: var(--gold);
+            font-size: 16px;
+            opacity: 0.8;
+            text-shadow: 0 0 10px var(--gold);
+        }
+
+        #board-wrapper::before {
+            top: 2px;
+            left: 4px;
+        }
+
+        #board-wrapper::after {
+            bottom: 2px;
+            right: 4px;
+        }
+
+        /* ── BOARD GRID ─────────────────────────── */
+        #board {
+            display: grid;
+            grid-template-columns: repeat(5, var(--cell-size));
+            grid-template-rows: repeat(6, var(--cell-size));
+            border: 1px solid rgba(201, 168, 76, 0.4);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 58px;
+            position: relative;
+            user-select: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .cell.light {
+            background-color: var(--sq-light);
+            background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
+        }
+
+        .cell.dark {
+            background-color: var(--sq-dark);
+            background-image: linear-gradient(135deg, rgba(0, 0, 0, 0.15) 0%, transparent 100%);
+        }
+
+        .cell:hover {
+            filter: brightness(1.2);
+            z-index: 5;
+        }
+
+        .cell.selected {
+            background-color: var(--sq-selected) !important;
+            box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.4);
+            animation: breathe 2s infinite ease-in-out;
+        }
+
+        @keyframes breathe {
+
+            0%,
+            100% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.3);
+            }
+        }
+
+        .cell.valid-move::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: var(--sq-move);
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0 0 10px var(--sq-move);
+        }
+
+        .cell.valid-capture {
+            background-color: var(--sq-capture) !important;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .cell.in-check {
+            background: linear-gradient(45deg, #a00, #500) !important;
+            animation: alertPulse 1.5s infinite;
+        }
+
+        @keyframes alertPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .cell.placement-ok {
+            background: rgba(201, 168, 76, 0.25) !important;
+        }
+
+        .cell.placement-ok:hover {
+            background: rgba(201, 168, 76, 0.45) !important;
+        }
+
+        .cell.placement-ok::after {
+            content: '+';
+            position: absolute;
+            font-size: 32px;
+            color: var(--gold);
+            opacity: 0.6;
+        }
+
+        /* Piece Symbols with depth */
+        .piece-W,
+        .piece-B {
+            animation: pieceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes pieceIn {
+            from {
+                transform: scale(0.5) translateZ(0px);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) translateZ(20px);
+                opacity: 1;
+            }
+        }
+
+        .piece-W {
+            color: #fffdf5;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 255, 255, 0.1);
+            transform: translateZ(20px);
+        }
+
+        .piece-B {
+            color: #121214;
+            text-shadow: 0 4px 8px rgba(255, 255, 255, 0.1), 0 0 12px rgba(0, 0, 0, 0.6);
+            transform: translateZ(20px);
+        }
+
+        .cell:active span {
+            transform: scale(0.8) translateZ(10px);
+            opacity: 0.8;
+        }
+
+        .cell:hover .piece-W,
+        .cell:hover .piece-B {
+            transform: scale(1.1) translateZ(30px);
+        }
+
+        /* ── PLACEMENT PIECE BUTTONS ────────────── */
+        #placement-pieces {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 10px;
+            justify-content: center;
+        }
+
+        .p-btn {
+            width: 48px;
+            height: 48px;
+            background: var(--card-bg);
+            border: 2px solid rgba(201, 168, 76, 0.3);
+            border-radius: 8px;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .p-btn:hover:not(.p-placed) {
+            transform: translateY(-4px) scale(1.1);
+            border-color: var(--gold);
+            background: rgba(201, 168, 76, 0.15);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .p-btn.p-selected {
+            border-color: var(--gold);
+            background: rgba(201, 168, 76, 0.25);
+            box-shadow: 0 0 15px var(--gold);
+            transform: translateY(-4px) scale(1.1);
+        }
+
+        .p-btn.p-placed {
+            opacity: 0.2;
+            cursor: default;
+            filter: grayscale(1);
+        }
+
+        .p-btn-label {
+            position: absolute;
+            bottom: -18px;
+            font-size: 10px;
+            font-family: 'Cinzel', serif;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        /* ── SIDE PANEL ─────────────────────────── */
+        #side-panel {
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-box {
+            background: var(--panel-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(201, 168, 76, 0.2);
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .panel-box h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(201, 168, 76, 0.2);
+            text-align: center;
+        }
+
+        /* Lighter Placement Panel */
+        #placement-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--gold);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        #placement-panel h3 {
+            color: #edbe3d;
+            border-bottom-color: rgba(93, 75, 26, 0.3);
+        }
+
+        .p-btn {
+            background: rgba(255, 255, 255, 0.6);
+            border-color: rgba(93, 75, 26, 0.4);
+            margin-bottom: 1em;
+        }
+
+        .p-btn:hover:not(.p-placed) {
+            background: rgba(255, 208, 78, 0.773);
+            border-color: #5d4b1a;
+        }
+
+        .p-btn-label {
+            color: #edbe3d;
+            font-weight: 600;
+        }
+
+        #move-list {
+            max-height: 220px;
+            overflow-y: auto;
+            font-size: 14px;
+            font-family: 'EB Garamond', serif;
+            padding-right: 5px;
+        }
+
+        #move-list::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #move-list::-webkit-scrollbar-thumb {
+            background: var(--gold-dim);
+            border-radius: 5px;
+        }
+
+        .move-entry {
+            display: flex;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .move-entry:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .move-num {
+            color: var(--gold-dim);
+            font-weight: bold;
+            width: 30px;
+        }
+
+        .move-txt {
+            color: var(--text-main);
+            flex: 1;
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(201, 168, 76, 0.1), transparent);
+            border: 1px solid rgba(201, 168, 76, 0.3);
+            border-radius: 8px;
+            color: var(--gold);
+            font-family: 'Cinzel', serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .action-btn:hover {
+            background: var(--gold);
+            color: #000;
+            box-shadow: 0 0 20px rgba(201, 168, 76, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .action-btn.danger {
+            color: var(--crimson-bright);
+            border-color: rgba(204, 34, 34, 0.3);
+        }
+
+        .action-btn.danger:hover {
+            background: var(--crimson-bright);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(204, 34, 34, 0.4);
+        }
+
+        /* ── OVERLAYS ───────────────────────────── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .overlay-box {
+            background: radial-gradient(circle at center, var(--panel-bg), #000);
+            border: 2px solid var(--gold);
+            border-radius: 24px;
+            padding: 60px 80px;
+            text-align: center;
+            box-shadow: 0 0 120px rgba(201, 168, 76, 0.4), inset 0 0 50px rgba(0, 0, 0, 0.8);
+            max-width: 600px;
+            position: relative;
+            overflow: hidden;
+            border-image: linear-gradient(to bottom, #c9a84c, #5d4b1a) 1;
+        }
+
+        .crown-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 15px rgba(201, 168, 76, 0.6));
+            animation: crownFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes crownFloat {
+
+            0%,
+            100% {
+                transform: translateY(0) scale(1);
+            }
+
+            50% {
+                transform: translateY(-10px) scale(1.1);
+            }
+        }
+
+        .overlay-box h2 {
+            font-family: 'Cinzel Decorative', serif;
+            font-size: 48px;
+            color: var(--gold);
+            margin-bottom: 10px;
+            letter-spacing: 8px;
+            text-shadow: 0 0 30px rgba(201, 168, 76, 0.5);
+            text-transform: uppercase;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .divider .line {
+            height: 2px;
+            width: 80px;
+            background: linear-gradient(to right, transparent, var(--gold), transparent);
+        }
+
+        .divider .diamond {
+            width: 12px;
+            height: 12px;
+            background: var(--gold);
+            transform: rotate(45deg);
+            box-shadow: 0 0 10px var(--gold);
+        }
+
+        .overlay-box .win-sub {
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            letter-spacing: 3px;
+            color: var(--text-main);
+            margin-bottom: 40px;
+            opacity: 0.9;
+            text-transform: uppercase;
+        }
+
+        .overlay-btn {
+            padding: 18px 50px;
+            background: linear-gradient(135deg, #c9a84c, #8a6d29);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            color: #000;
+            font-family: 'Cinzel', serif;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+            text-transform: uppercase;
+        }
+
+        .overlay-btn:hover {
+            transform: scale(1.05) translateY(-3px);
+            box-shadow: 0 10px 30px rgba(201, 168, 76, 0.5);
+            background: linear-gradient(135deg, #e8c060, #c9a84c);
+        }
+
+        /* promotion modal */
+        #promo-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 150;
+        }
+
+        .promo-box {
+            background: var(--panel-bg);
+            border: 2px solid var(--gold);
+            border-radius: 16px;
+            padding: 30px 40px;
+            text-align: center;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
+        }
+
+        .promo-box h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 16px;
+            letter-spacing: 3px;
+            color: var(--gold);
+            margin-bottom: 20px;
+        }
+
+        .promo-choices {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .promo-btn {
+            width: 72px;
+            height: 72px;
+            background: var(--card-bg);
+            border: 2px solid rgba(201, 168, 76, 0.3);
+            border-radius: 12px;
+            font-size: 42px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+
+        .promo-btn:hover {
+            border-color: var(--gold);
+            transform: translateY(-5px);
+            background: rgba(201, 168, 76, 0.15);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .promo-btn span {
+            font-family: 'Cinzel', serif;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        #board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .col-labels {
+            display: flex;
+            width: 440px;
+            /* 5 * 88px */
+            margin-top: 15px;
+            justify-content: space-around;
+        }
+
+        .col-lbl {
+            width: var(--cell-size);
+            text-align: center;
+            font-size: 16px;
+            color: var(--gold);
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(201, 168, 76, 0.3);
+        }
+
+        /* ── FOOTER ─────────────────────────────── */
+        #footer {
+            text-align: center;
+            padding: 40px 20px;
+            font-family: 'Cinzel', serif;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(201, 168, 76, 0.15);
+            margin-top: 40px;
+        }
+
+        #footer .heart {
+            color: var(--crimson-bright);
+            font-size: 16px;
+            animation: heartbeat 1.5s infinite;
+            display: inline-block;
+            margin: 0 4px;
+        }
+
+        @keyframes heartbeat {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            14% {
+                transform: scale(1.3);
+            }
+
+            28% {
+                transform: scale(1);
+            }
+
+            42% {
+                transform: scale(1.15);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-overlay"></div>
+
+    <div id="header">
+        <h1>⚔ Game of Thrones Chess ⚔</h1>
+        <p>6 × 5 VARIANT · OFFICIAL TOURNAMENT VIEW</p>
+    </div>
+
+    <div id="app">
+        <!-- Left Column: Player Stats -->
+        <div id="player-column">
+            <!-- Black player bar -->
+            <div class="player-bar" id="bar-B">
+                <div class="player-name">
+                    <div class="color-dot black"></div>
+                    <span>BLACK</span>
+                    <div class="illegal-indicators">
+                        <div class="ill-dot" id="b-ill-0"></div>
+                        <div class="ill-dot" id="b-ill-1"></div>
+                        <div class="ill-dot" id="b-ill-2"></div>
+                    </div>
+                </div>
+                <div class="player-right">
+                    <div class="captured-bar" id="cap-W"></div>
+                    <div class="timer ok" id="timer-B">5:00</div>
+                </div>
+            </div>
+
+            <!-- White player bar -->
+            <div class="player-bar" id="bar-W">
+                <div class="player-name">
+                    <div class="color-dot white"></div>
+                    <span>WHITE</span>
+                    <div class="illegal-indicators">
+                        <div class="ill-dot" id="w-ill-0"></div>
+                        <div class="ill-dot" id="w-ill-1"></div>
+                        <div class="ill-dot" id="w-ill-2"></div>
+                    </div>
+                </div>
+                <div class="player-right">
+                    <div class="captured-bar" id="cap-B"></div>
+                    <div class="timer ok" id="timer-W">5:00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Column: Board -->
+        <div id="board-container">
+            <div id="board-wrapper">
+                <div id="board"></div>
+            </div>
+            <div class="col-labels" id="col-labels">
+                <div class="col-lbl">a</div>
+                <div class="col-lbl">b</div>
+                <div class="col-lbl">c</div>
+                <div class="col-lbl">d</div>
+                <div class="col-lbl">e</div>
+            </div>
+        </div>
+
+        <!-- Right Column: Side Panel -->
+        <div id="side-panel">
+            <div class="panel-box">
+                <h3>Turn Status</h3>
+                <div id="status-msg">Loading…</div>
+            </div>
+
+            <div class="panel-box" id="placement-panel">
+                <h3>Place Your Pieces</h3>
+                <div id="placement-pieces"></div>
+            </div>
+
+            <div class="panel-box">
+                <button id="pause-btn" class="action-btn" onclick="togglePause()" style="display:none">|| Pause
+                    Battle</button>
+                <button class="action-btn" onclick="restartGame()">⟳ Reset Game</button>
+                <button class="action-btn danger" onclick="resign()">⚑ Resign</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Promotion Modal -->
+    <div id="promo-modal" style="display:none">
+        <div class="promo-box">
+            <h3>PAWN PROMOTION</h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">Choose a captured piece</p>
+            <div class="promo-choices" id="promo-choices"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer">
+        <span>with</span> <span class="heart">♥</span> <span>AIML Student Society Moradabad</span>
+    </div>
+
+    <!-- End Game Overlay -->
+    <div id="end-overlay" class="overlay" style="display:none">
+        <div class="overlay-box">
+            <div class="crown-icon">👑</div>
+            <h2 id="end-title">VICTORY</h2>
+            <div class="divider">
+                <div class="line"></div>
+                <div class="diamond"></div>
+                <div class="line"></div>
+            </div>
+            <div id="end-sub" class="win-sub">Game ended</div>
+            <button class="overlay-btn" onclick="restartGame()">RESTART BATTLE</button>
+        </div>
+    </div>
+
+    <!-- Start Game Overlay -->
+    <div id="start-overlay" class="overlay" style="display:none">
+        <div class="overlay-box">
+            <h2 style="font-size: 42px;">BATTLE READY</h2>
+            <div class="divider">
+                <div class="line"></div>
+                <div class="diamond"></div>
+                <div class="line"></div>
+            </div>
+            <div class="win-sub">Placement phase complete. The battle awaits.</div>
+            <button class="overlay-btn" onclick="beginBattle()">START BATTLE</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // CONSTANTS & CONFIG
+        // ============================================================
+        const ROWS = 6, COLS = 5;
+        const ALL_TYPES = ['K', 'Q', 'R', 'B', 'N'];
+
+        const SYM = {
+            WK: '♔', WQ: '♕', WR: '♖', WB: '♗', WN: '♘', WP: '♙',
+            BK: '♚', BQ: '♛', BR: '♜', BB: '♝', BN: '♞', BP: '♟'
+        };
+        const PIECE_NAME = { K: 'King', Q: 'Queen', R: 'Rook', B: 'Bishop', N: 'Knight', P: 'Pawn' };
+        const COL_LETTERS = ['a', 'b', 'c', 'd', 'e'];
+        const ROW_LABELS = ['6', '5', '4', '3', '2', '1']; // row0=rank6 (Black side), row5=rank1 (White side)
+
+        // ============================================================
+        // GAME STATE
+        // ============================================================
+        let G = {};
+
+        function initGame() {
+            G = {
+                board: Array(ROWS).fill(null).map(() => Array(COLS).fill(null)),
+                phase: 'placement',
+                currentPlayer: 'W',
+
+                // Placement
+                placementRound: 0,      // 0–4
+                // Leaders: B leads rounds 0,2,4 | W leads 1,3
+                placementLeaders: ['B', 'W', 'B', 'W', 'B'],
+                placementStep: 'leader-select', // 'leader-select' | 'leader-place' | 'follower-place'
+                placementSelectedType: null,
+                placedTypes: new Set(),
+
+                // Game
+                selectedSq: null,
+                legalMovesCache: [],
+
+                // Timers
+                timers: { W: 300, B: 300 },
+                timerTick: null,
+                timerRunning: false,
+
+                // Tracking
+                illegal: { W: 0, B: 0 },
+                capturedByColor: { W: [], B: [] }, // capturedByColor['W'] = pieces White captured
+                posHistory: [],
+                movesNoCapture: 0,
+                moveNumber: 1,
+                moveHistory: [],
+
+                // Promotion
+                pendingPromo: null,
+            };
+
+            clearInterval(G.timerTick);
+            render();
+            setStatus(placementStatusMsg());
+            updatePieceButtons();
+            updatePlayerBars();
+        }
+
+        // ============================================================
+        // PLACEMENT PHASE
+        // ============================================================
+        function placementLeader() { return G.placementLeaders[G.placementRound]; }
+        function placementFollower() { return placementLeader() === 'W' ? 'B' : 'W'; }
+
+        function placementStatusMsg() {
+            const leader = placementLeader();
+            const lName = leader === 'W' ? 'WHITE' : 'BLACK';
+            const remaining = ALL_TYPES.filter(t => !G.placedTypes.has(t));
+
+            if (G.placementStep === 'leader-select') {
+                return `${lName} — Choose a piece type, then click your back row to place it`;
+            } else {
+                return `${lName} — Click a column in your back row to place ${PIECE_NAME[G.placementSelectedType]}`;
+            }
+        }
+
+        function handlePlacementClick(row, col) {
+            const leader = placementLeader();
+            const follower = placementFollower();
+
+            if (G.placementStep === 'leader-select') return;
+
+            if (G.placementStep === 'leader-place') {
+                const leaderRow = leader === 'W' ? ROWS - 1 : 0;
+                if (row !== leaderRow) return;
+                if (G.board[row][col]) return;
+
+                // Place leader's piece
+                G.board[leaderRow][col] = { type: G.placementSelectedType, color: leader };
+
+                // Auto-place follower's piece in same column, opposite back row
+                const followerRow = follower === 'W' ? ROWS - 1 : 0;
+                if (!G.board[followerRow][col]) {
+                    G.board[followerRow][col] = { type: G.placementSelectedType, color: follower };
+                } else {
+                    // Column occupied for follower — find nearest free column
+                    let placed = false;
+                    for (let offset = 1; offset < COLS && !placed; offset++) {
+                        for (const dir of [1, -1]) {
+                            const nc = col + dir * offset;
+                            if (nc >= 0 && nc < COLS && !G.board[followerRow][nc]) {
+                                G.board[followerRow][nc] = { type: G.placementSelectedType, color: follower };
+                                placed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                G.placedTypes.add(G.placementSelectedType);
+                G.placementRound++;
+
+                if (G.placementRound === 5) {
+                    finishPlacement();
+                } else {
+                    G.placementStep = 'leader-select';
+                    G.placementSelectedType = null;
+                    setStatus(placementStatusMsg());
+                    updatePieceButtons();
+                    render();
+                }
+            }
+        }
+
+        function selectPlacementType(type) {
+            if (G.phase !== 'placement') return;
+            if (G.placementStep !== 'leader-select') return;
+            if (G.placedTypes.has(type)) return;
+            G.placementSelectedType = type;
+            G.placementStep = 'leader-place';
+            setStatus(placementStatusMsg());
+            render();
+            updatePieceButtons();
+        }
+
+        function finishPlacement() {
+            // Fill pawns: Black pawns row1, White pawns row3
+            for (let c = 0; c < COLS; c++) {
+                G.board[1][c] = { type: 'P', color: 'B' };
+                G.board[4][c] = { type: 'P', color: 'W' };
+            }
+            G.phase = 'game';
+            G.currentPlayer = 'W';
+            G.selectedSq = null;
+            document.getElementById('placement-pieces').innerHTML = '';
+            document.getElementById('placement-panel').classList.remove('visible');
+            recordPosition();
+            render();
+            updateStatus();
+            updatePlayerBars();
+
+            // Show start overlay instead of direct timer start
+            document.getElementById('start-overlay').style.display = 'flex';
+        }
+
+        function beginBattle() {
+            document.getElementById('start-overlay').style.display = 'none';
+            startTimer();
+        }
+
+        // ============================================================
+        // CHESS LOGIC
+        // ============================================================
+
+        // Pseudo-legal moves for a piece (ignores check)
+        function pseudoMoves(board, r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            const { type, color } = piece;
+            const opp = color === 'W' ? 'B' : 'W';
+            const moves = [];
+            const inBounds = (rr, cc) => rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS;
+
+            if (type === 'P') {
+                const dir = color === 'W' ? -1 : 1;
+                const nr = r + dir;
+                if (inBounds(nr, c) && !board[nr][c]) {
+                    moves.push([nr, c]);
+                }
+                // Diagonal captures
+                for (const dc of [-1, 1]) {
+                    const nc = c + dc;
+                    if (inBounds(nr, nc) && board[nr][nc] && board[nr][nc].color === opp) {
+                        moves.push([nr, nc]);
+                    }
+                }
+            }
+
+            if (type === 'R' || type === 'Q') {
+                for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+                    let rr = r + dr, cc = c + dc;
+                    while (inBounds(rr, cc)) {
+                        if (board[rr][cc]) {
+                            if (board[rr][cc].color === opp) moves.push([rr, cc]);
+                            break;
+                        }
+                        moves.push([rr, cc]);
+                        rr += dr; cc += dc;
+                    }
+                }
+            }
+
+            if (type === 'B' || type === 'Q') {
+                for (const [dr, dc] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+                    let rr = r + dr, cc = c + dc;
+                    while (inBounds(rr, cc)) {
+                        if (board[rr][cc]) {
+                            if (board[rr][cc].color === opp) moves.push([rr, cc]);
+                            break;
+                        }
+                        moves.push([rr, cc]);
+                        rr += dr; cc += dc;
+                    }
+                }
+            }
+
+            if (type === 'N') {
+                for (const [dr, dc] of [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]]) {
+                    const rr = r + dr, cc = c + dc;
+                    if (inBounds(rr, cc) && (!board[rr][cc] || board[rr][cc].color === opp))
+                        moves.push([rr, cc]);
+                }
+            }
+
+            if (type === 'K') {
+                for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+                    const rr = r + dr, cc = c + dc;
+                    if (inBounds(rr, cc) && (!board[rr][cc] || board[rr][cc].color === opp))
+                        moves.push([rr, cc]);
+                }
+            }
+
+            return moves;
+        }
+
+        function availablePromotions(board, color) {
+            const opp = color === 'W' ? 'B' : 'W';
+            // Own pieces captured by the opponent sit in capturedByColor[opp]
+            const lost = (G.capturedByColor[opp] || []).filter(p => p.color === color && p.type !== 'K' && p.type !== 'P');
+            // Which of our own types are still on the board
+            const onBoard = new Set();
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+                if (board[r][c]?.color === color) onBoard.add(board[r][c].type);
+            // Deduplicate and only return types no longer on board
+            const seen = new Set();
+            return lost.map(p => p.type).filter(t => !onBoard.has(t) && !seen.has(t) && seen.add(t));
+        }
+
+        function findKing(board, color) {
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+                if (board[r][c]?.type === 'K' && board[r][c]?.color === color) return [r, c];
+            }
+            return null;
+        }
+
+        function isSquareAttacked(board, r, c, byColor) {
+            for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) {
+                if (board[rr][cc]?.color === byColor) {
+                    const ms = pseudoMoves(board, rr, cc);
+                    if (ms.some(([mr, mc]) => mr === r && mc === c)) return true;
+                }
+            }
+            return false;
+        }
+
+        function isInCheck(board, color) {
+            const kpos = findKing(board, color);
+            if (!kpos) return true;
+            const opp = color === 'W' ? 'B' : 'W';
+            return isSquareAttacked(board, kpos[0], kpos[1], opp);
+        }
+
+        function applyMove(board, fromR, fromC, toR, toC) {
+            const nb = board.map(row => row.map(p => p ? { ...p } : null));
+            nb[toR][toC] = nb[fromR][fromC];
+            nb[fromR][fromC] = null;
+            return nb;
+        }
+
+        function getLegalMoves(board, r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            let pseudo = pseudoMoves(board, r, c);
+
+            // Filter out pawn moves to promotion row if no pieces exist to promote into
+            if (piece.type === 'P') {
+                const promoRow = piece.color === 'W' ? 0 : ROWS - 1;
+                const canPromote = availablePromotions(board, piece.color).length > 0;
+                if (!canPromote) {
+                    pseudo = pseudo.filter(([tr, tc]) => tr !== promoRow);
+                }
+            }
+
+            return pseudo.filter(([tr, tc]) => {
+                const nb = applyMove(board, r, c, tr, tc);
+                return !isInCheck(nb, piece.color);
+            });
+        }
+
+        function hasAnyLegalMove(board, color) {
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+                if (board[r][c]?.color === color && getLegalMoves(board, r, c).length > 0) return true;
+            }
+            return false;
+        }
+
+        function boardToString(board) {
+            return board.map(row => row.map(p => p ? p.color + p.type : '--').join(',')).join('/');
+        }
+
+        function recordPosition() {
+            G.posHistory.push(boardToString(G.board));
+        }
+
+        function countPositionOccurrences(pos) {
+            return G.posHistory.filter(p => p === pos).length;
+        }
+
+        function getMaterialScore(board, color) {
+            const vals = { K: 0, Q: 9, R: 5, B: 3, N: 3, P: 1 };
+            let s = 0;
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+                if (board[r][c]?.color === color) s += vals[board[r][c].type] || 0;
+            }
+            return s;
+        }
+
+        function insufficientMaterial(board) {
+            const pieces = [];
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+                if (board[r][c] && board[r][c].type !== 'K') pieces.push(board[r][c]);
+            }
+            if (pieces.length === 0) return true; // K vs K
+            if (pieces.length === 1 && (pieces[0].type === 'N' || pieces[0].type === 'B')) return true;
+            return false;
+        }
+
+        // ============================================================
+        // GAME ACTIONS
+        // ============================================================
+        function handleCellClick(r, c) {
+            if (G.phase === 'placement') {
+                handlePlacementClick(r, c);
+                return;
+            }
+            if (G.phase !== 'game') return;
+
+            const board = G.board;
+            const player = G.currentPlayer;
+
+            // If promotion pending, ignore
+            if (G.pendingPromo) return;
+
+            if (G.selectedSq) {
+                const [fr, fc] = G.selectedSq;
+                const legal = G.legalMovesCache;
+
+                if (legal.some(([tr, tc]) => tr === r && tc === c)) {
+                    // Execute move
+                    executeMove(fr, fc, r, c);
+                } else if (board[r][c]?.color === player) {
+                    // Select different piece
+                    G.selectedSq = [r, c];
+                    G.legalMovesCache = getLegalMoves(board, r, c);
+                    render();
+                } else {
+                    // Illegal click
+                    G.selectedSq = null;
+                    G.legalMovesCache = [];
+                    if (board[fr][fc]) {
+                        // Had a piece selected but clicked invalid square — count as illegal move attempt
+                        registerIllegal(player);
+                    }
+                    render();
+                }
+            } else {
+                if (board[r][c]?.color === player) {
+                    const moves = getLegalMoves(board, r, c);
+                    if (moves.length > 0) {
+                        G.selectedSq = [r, c];
+                        G.legalMovesCache = moves;
+                    }
+                    render();
+                }
+            }
+        }
+
+        function executeMove(fr, fc, tr, tc) {
+            const piece = G.board[fr][fc];
+            const captured = G.board[tr][tc];
+            const player = G.currentPlayer;
+
+            // Notation
+            const notation = moveNotation(fr, fc, tr, tc, piece, captured);
+
+            // Apply move
+            const nb = applyMove(G.board, fr, fc, tr, tc);
+
+            // Track captured
+            if (captured) {
+                G.capturedByColor[player].push({ ...captured });
+                G.movesNoCapture = 0;
+            } else {
+                G.movesNoCapture++;
+            }
+
+            G.board = nb;
+            G.selectedSq = null;
+            G.legalMovesCache = [];
+
+            // Check pawn promotion
+            if (piece.type === 'P') {
+                const promoRow = player === 'W' ? 0 : ROWS - 1;
+                if (tr === promoRow) {
+                    G.pendingPromo = { r: tr, c: tc };
+                    const promos = availablePromotions(G.board, player);
+                    if (promos.length === 0) {
+                        // No promotion available (shouldn't get here but safety)
+                        finishTurn(notation);
+                    } else {
+                        showPromoModal(player, promos, notation);
+                        return;
+                    }
+                }
+            }
+
+            finishTurn(notation);
+        }
+
+        function finishTurn(notation) {
+            const opp = G.currentPlayer === 'W' ? 'B' : 'W';
+
+            // Record to history
+            if (G.currentPlayer === 'W') {
+                G.moveHistory.push({ num: G.moveNumber, w: notation, b: null });
+            } else {
+                if (G.moveHistory.length > 0) {
+                    G.moveHistory[G.moveHistory.length - 1].b = notation;
+                } else {
+                    G.moveHistory.push({ num: G.moveNumber, w: '...', b: notation });
+                }
+                G.moveNumber++;
+            }
+
+            // Check draws
+            recordPosition();
+            const pos = boardToString(G.board);
+            if (countPositionOccurrences(pos) >= 3) { endGame('draw', 'Threefold repetition'); return; }
+            if (G.movesNoCapture >= 30) { endGame('draw', 'No capture for 30 moves'); return; }
+            if (insufficientMaterial(G.board)) { endGame('draw', 'Insufficient material'); return; }
+
+            // Switch player
+            G.currentPlayer = opp;
+            switchTimer();
+
+            // Check checkmate / stalemate (both = loss for opponent per rules)
+            if (!hasAnyLegalMove(G.board, opp)) {
+                if (isInCheck(G.board, opp)) {
+                    endGame('win', `Checkmate! ${G.currentPlayer === 'W' ? 'Black' : 'White'} wins.`);
+                } else {
+                    endGame('win', `No valid moves! ${G.currentPlayer === 'W' ? 'Black' : 'White'} wins.`);
+                }
+                return;
+            }
+
+            render();
+            updateStatus();
+            updateMoveList();
+            updatePlayerBars();
+        }
+
+        function registerIllegal(player) {
+            G.illegal[player]++;
+            updatePlayerBars();
+            if (G.illegal[player] >= 3) {
+                const opp = player === 'W' ? 'B' : 'W';
+                endGame('win-illegal', `${player === 'W' ? 'White' : 'Black'} committed 3 illegal moves. ${opp === 'W' ? 'White' : 'Black'} wins!`);
+            } else {
+                setStatus(`⚠ Illegal move! Warning ${G.illegal[player]}/3`);
+                setTimeout(() => updateStatus(), 2000);
+            }
+        }
+
+        function showPromoModal(color, options, notation) {
+            const container = document.getElementById('promo-choices');
+            container.innerHTML = '';
+            options.forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = 'promo-btn';
+                btn.innerHTML = `${SYM[color + type]}<span>${PIECE_NAME[type]}</span>`;
+                btn.onclick = () => {
+                    G.board[G.pendingPromo.r][G.pendingPromo.c] = { type, color };
+                    G.pendingPromo = null;
+                    document.getElementById('promo-modal').style.display = 'none';
+                    finishTurn(notation + '=' + type);
+                };
+                container.appendChild(btn);
+            });
+            document.getElementById('promo-modal').style.display = 'flex';
+        }
+
+        function moveNotation(fr, fc, tr, tc, piece, captured) {
+            const pName = piece.type === 'P' ? '' : piece.type;
+            const cap = captured ? 'x' : '';
+            const dest = COL_LETTERS[tc] + (ROWS - tr);
+            return pName + COL_LETTERS[fc] + (ROWS - fr) + cap + dest;
+        }
+
+        // ============================================================
+        // TIMER
+        // ============================================================
+        function startTimer() {
+            G.timerRunning = true;
+            document.getElementById('pause-btn').style.display = 'block';
+            G.timerTick = setInterval(() => {
+                if (!G.timerRunning) return;
+                G.timers[G.currentPlayer]--;
+                if (G.timers[G.currentPlayer] <= 0) {
+                    G.timers[G.currentPlayer] = 0;
+                    updateTimerDisplay();
+                    const opp = G.currentPlayer === 'W' ? 'B' : 'W';
+                    endGame('timeout', `${G.currentPlayer === 'W' ? 'White' : 'Black'} ran out of time! ${opp === 'W' ? 'White' : 'Black'} wins.`);
+                    return;
+                }
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function togglePause() {
+            if (G.phase !== 'game') return;
+            G.timerRunning = !G.timerRunning;
+            const btn = document.getElementById('pause-btn');
+            btn.textContent = G.timerRunning ? '|| Pause Battle' : '▶ Resume Battle';
+            btn.classList.toggle('warn', !G.timerRunning);
+            setStatus(G.timerRunning ? 'BATTLE RESUMED' : 'BATTLE PAUSED');
+            if (G.timerRunning) setTimeout(() => updateStatus(), 2000);
+        }
+
+        function switchTimer() {
+            // Timer just keeps counting for currentPlayer (already switched)
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return m + ':' + String(s).padStart(2, '0');
+        }
+
+        function updateTimerDisplay() {
+            ['W', 'B'].forEach(color => {
+                const el = document.getElementById('timer-' + color);
+                const t = G.timers[color];
+                el.textContent = formatTime(t);
+                el.className = 'timer ' + (t <= 30 ? 'urgent' : t <= 60 ? 'warn' : 'ok');
+            });
+        }
+
+        // ============================================================
+        // GAME END
+        // ============================================================
+        function endGame(reason, message) {
+            G.phase = 'ended';
+            G.timerRunning = false;
+            clearInterval(G.timerTick);
+            document.getElementById('pause-btn').style.display = 'none';
+
+            let title = reason === 'draw' ? '⚖ DRAW ⚖' : '♛ VICTORY';
+            if (reason === 'timeout') title = '⏱ TIME\'S UP';
+            if (reason === 'win-illegal') title = '⚔ FORFEIT';
+
+            document.getElementById('end-title').textContent = title;
+            document.getElementById('end-sub').textContent = message;
+            document.getElementById('end-overlay').style.display = 'flex';
+        }
+
+        function offerDraw() {
+            if (G.phase === 'ended') return;
+            const player = G.currentPlayer === 'W' ? 'White' : 'Black';
+            const opp = G.currentPlayer === 'W' ? 'Black' : 'White';
+            if (confirm(`${player} offers a draw. Does ${opp} accept?`)) {
+                endGame('draw', 'Both players agreed to a draw.');
+            }
+        }
+
+        function resign() {
+            if (G.phase === 'ended') return;
+            const resigning = G.currentPlayer === 'W' ? 'White' : 'Black';
+            const winner = G.currentPlayer === 'W' ? 'Black' : 'White';
+            // Confirmation alert removed as per user request
+            endGame('win', `${resigning} resigned. ${winner} wins!`);
+        }
+
+        function restartGame() {
+            document.getElementById('end-overlay').style.display = 'none';
+            document.getElementById('promo-modal').style.display = 'none';
+            clearInterval(G.timerTick);
+            initGame();
+        }
+
+        // ============================================================
+        // RENDERING
+        // ============================================================
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            const board = G.board;
+            const inCheck = G.phase === 'game' ? isInCheck(board, G.currentPlayer) : false;
+            const checkKingPos = inCheck ? findKing(board, G.currentPlayer) : null;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.createElement('div');
+                    const isLight = (r + c) % 2 === 0;
+                    cell.className = 'cell ' + (isLight ? 'light' : 'dark');
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+
+                    // Piece
+                    const piece = board[r][c];
+                    if (piece) {
+                        const span = document.createElement('span');
+                        span.textContent = SYM[piece.color + piece.type] || '?';
+                        span.className = 'piece-' + piece.color;
+                        cell.appendChild(span);
+                    }
+
+                    // Highlights
+                    if (G.selectedSq && G.selectedSq[0] === r && G.selectedSq[1] === c) {
+                        cell.classList.add('selected');
+                    }
+
+                    if (G.phase === 'game' && G.selectedSq) {
+                        const legal = G.legalMovesCache;
+                        if (legal.some(([lr, lc]) => lr === r && lc === c)) {
+                            if (board[r][c]) cell.classList.add('valid-capture');
+                            else cell.classList.add('valid-move');
+                        }
+                    }
+
+                    // Check highlight
+                    if (checkKingPos && checkKingPos[0] === r && checkKingPos[1] === c) {
+                        cell.classList.add('in-check');
+                    }
+
+                    // Placement highlights
+                    if (G.phase === 'placement') {
+                        const step = G.placementStep;
+                        const leader = placementLeader();
+                        if (step === 'leader-place') {
+                            const backRow = leader === 'W' ? ROWS - 1 : 0;
+                            if (r === backRow && !board[r][c]) cell.classList.add('placement-ok');
+                        }
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function updateStatus() {
+            if (G.phase === 'game') {
+                const player = G.currentPlayer === 'W' ? 'WHITE' : 'BLACK';
+                const inCheck = isInCheck(G.board, G.currentPlayer);
+                const msg = inCheck
+                    ? `⚔ ${player}'S TURN — IN CHECK!`
+                    : `${player}'S TURN`;
+                setStatus(msg);
+            }
+        }
+
+        function setStatus(msg) {
+            document.getElementById('status-msg').innerHTML = msg;
+        }
+
+        function updatePieceButtons() {
+            const container = document.getElementById('placement-pieces');
+            const panel = document.getElementById('placement-panel');
+            if (G.phase !== 'placement') {
+                container.innerHTML = '';
+                panel.classList.remove('visible');
+                return;
+            }
+            panel.classList.add('visible');
+
+            container.innerHTML = '';
+            const leader = placementLeader();
+            const lColor = leader === 'W' ? 'W' : 'B';
+
+            if (G.placementStep === 'leader-select') {
+                ALL_TYPES.forEach(type => {
+                    const btn = document.createElement('button');
+                    const placed = G.placedTypes.has(type);
+                    btn.className = 'p-btn' + (placed ? ' p-placed' : '');
+                    btn.innerHTML = `${SYM[lColor + type]}<span class="p-btn-label">${PIECE_NAME[type]}</span>`;
+                    if (!placed) btn.onclick = () => selectPlacementType(type);
+                    container.appendChild(btn);
+                });
+            } else if (G.placementStep === 'leader-place') {
+                const t = G.placementSelectedType;
+                const btn = document.createElement('div');
+                btn.className = 'p-btn p-selected';
+                btn.innerHTML = `${SYM[lColor + t]}<span class="p-btn-label">${PIECE_NAME[t]}</span>`;
+                container.appendChild(btn);
+            }
+        }
+
+        function updatePlayerBars() {
+            ['W', 'B'].forEach(color => {
+                const bar = document.getElementById('bar-' + color);
+                if (G.phase === 'game') {
+                    bar.className = 'player-bar' + (G.currentPlayer === color ? ' active-bar' : '');
+                } else {
+                    // During placement, highlight the active placer
+                    const step = G.placementStep;
+                    const leader = G.phase === 'placement' ? placementLeader() : null;
+                    let active = (step === 'leader-select' || step === 'leader-place') && color === leader;
+                    bar.className = 'player-bar' + (active ? ' active-bar' : '');
+                }
+
+                // Illegal dots
+                const prefix = color === 'W' ? 'w' : 'b';
+                for (let i = 0; i < 3; i++) {
+                    const dot = document.getElementById(prefix + '-ill-' + i);
+                    const count = G.illegal[color];
+                    dot.className = 'ill-dot' + (i < count ? (i === 2 ? ' danger' : ' warn') : '');
+                }
+
+                // Captured pieces display
+                const capEl = document.getElementById('cap-' + (color === 'W' ? 'B' : 'W'));
+                const capByThisColor = G.capturedByColor[color] || [];
+                capEl.textContent = capByThisColor.map(p => SYM[p.color + p.type]).join('');
+            });
+
+            updateTimerDisplay();
+        }
+
+        function updateMoveList() {
+            const el = document.getElementById('move-list');
+            el.innerHTML = '';
+            G.moveHistory.forEach(({ num, w, b }) => {
+                const div = document.createElement('div');
+                div.className = 'move-entry';
+                div.innerHTML = `<span class="move-num">${num}.</span><span class="move-txt">${w || ''}</span><span class="move-txt" style="margin-left:6px">${b || ''}</span>`;
+                el.appendChild(div);
+            });
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // ============================================================
+        // KEYBOARD SHORTCUTS
+        // ============================================================
+        document.addEventListener('keydown', (e) => {
+            // Enter key for overlays
+            if (e.key === 'Enter') {
+                if (document.getElementById('start-overlay').style.display === 'flex') {
+                    beginBattle();
+                } else if (document.getElementById('end-overlay').style.display === 'flex') {
+                    restartGame();
+                }
+            }
+            // Space bar for pause
+            if (e.key === ' ' || e.code === 'Space') {
+                // Prevent scrolling when playing
+                if (G.phase === 'game') {
+                    e.preventDefault();
+                    togglePause();
+                }
+            }
+        });
+
+        // ============================================================
+        // BOOT
+        // ============================================================
+        initGame();
+    </script>
+</body>
+
+</html>

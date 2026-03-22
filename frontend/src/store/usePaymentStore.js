@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import paymentService from "../api/payment";
+import { purchaseApi as paymentService } from "../api/express";
 
 const usePaymentStore = create((set, get) => ({
     isProcessing: false,
@@ -14,8 +14,8 @@ const usePaymentStore = create((set, get) => ({
 
     fetchMyOrders: async () => {
         try {
-            const data = await paymentService.getMyOrders();
-            set({ orders: data.orders || [] });
+            const data = await paymentService.getMyPurchases();
+            set({ orders: data.purchases || data.orders || data || [] });
         } catch (error) {
             console.error("Error fetching orders:", error);
         }
@@ -25,7 +25,8 @@ const usePaymentStore = create((set, get) => ({
         set({ isProcessing: true });
         try {
             // 1. Create order on backend
-            const orderData = await paymentService.createOrder(product._id);
+            const responseData = await paymentService.createOrder(product._id, product.price);
+            const orderData = responseData.order || responseData;
             console.log("Order created on backend:", orderData);
 
             // 2. Open Razorpay Checkout widget
@@ -41,10 +42,11 @@ const usePaymentStore = create((set, get) => ({
                     // 3. Verify payment on backend
                     try {
                         const verifyData = {
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature,
-                            productId: product._id
+                            paymentId: response.razorpay_payment_id,
+                            orderId: response.razorpay_order_id,
+                            signature: response.razorpay_signature,
+                            projectId: product._id,
+                            amount: product.price
                         };
                         console.log("Sending verification data:", verifyData);
                         const result = await paymentService.verifyPayment(verifyData);

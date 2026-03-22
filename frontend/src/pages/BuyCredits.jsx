@@ -53,62 +53,24 @@ export default function BuyCredits() {
 
     setLoading(packId);
     try {
-      if (!token) {
-        toast.error('Token missing, please login again');
-        return;
+      const { creditsApi } = await import('../api/express');
+      const response = await creditsApi.purchaseCredits(packId);
+
+      if (response && response.success) {
+        toast.success(response.message || `Successfully added credits!`);
+        // Update local store
+        setCredits(response.balance);
+        // Refresh full profile
+        await getProfile();
+        
+        // Navigate back to lab if we came from there
+        if (sessionStorage.getItem('pendingProjectId')) {
+          navigate('/lab');
+        }
       }
-      
-      const { data: orderData } = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/payments/create-order`, 
-        { type: 'credit', packId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const { data: { key } } = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/payments/razorpay-key`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const options = {
-        key,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "BrainBazaar Credits",
-        description: `Purchase ${CREDIT_PACKS.find(p => p.id === packId).name}`,
-        order_id: orderData.id,
-        handler: async (response) => {
-          try {
-            const { data: verifyData } = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/payments/verify-payment`, 
-              {
-                ...response,
-                type: 'credit',
-                packId
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (verifyData.success) {
-              toast.success(`Successfully added credits!`);
-              // Refresh full profile to sync all stores
-              await getProfile();
-              navigate('/lab/demo');
-            }
-          } catch (err) {
-            toast.error("Verification failed");
-          }
-        },
-        prefill: {
-          name: user.fullName,
-          email: user.email,
-        },
-        theme: {
-          color: "#2563eb",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || "Failed to initiate payment");
+      toast.error(error.response?.data?.message || error.message || "Failed to purchase credits");
     } finally {
       setLoading(null);
     }
@@ -178,7 +140,7 @@ export default function BuyCredits() {
               <div className="space-y-4 mb-10">
                 {pack.features.map(feat => (
                   <div key={feat} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
                       <Check className="text-emerald-500" size={12} strokeWidth={3} />
                     </div>
                     {feat}

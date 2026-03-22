@@ -16,8 +16,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          pyodide: ['pyodide']
+        manualChunks(id) {
+          if (id.includes('pyodide')) {
+            return 'pyodide';
+          }
         }
       }
     }

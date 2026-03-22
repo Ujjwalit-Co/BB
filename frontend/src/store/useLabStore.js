@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { AIResponse } from '../services/aiModels';
+import { projectsApi, milestonesApi } from '../api/fastapi';
+import { purchaseApi, creditsApi, progressApi } from '../api/express';
 
 const DEMO_FILES = [
   {
@@ -339,6 +341,8 @@ const useLabStore = create((set, get) => ({
   requiredCredits: 0,
   showOnboarding: false,
   userEnvironment: null,
+  isPurchased: false, // Whether user has purchased this project
+  currentQuiz: null, // Current quiz data
 
   // Console
   consoleContext: {}, // Persistent context for variables across commands
@@ -376,7 +380,7 @@ const useLabStore = create((set, get) => ({
     // Simulate AI analysis
     await new Promise(r => setTimeout(r, 800));
     set({ loadingStatus: 'Synchronizing environment...', loadingProgress: 50 });
-    
+
     // Preload Pyodide (Python runtime) and track its progress
     set({ loadingStatus: 'Initializing Python runtime...', loadingProgress: 60 });
     try {
@@ -388,7 +392,7 @@ const useLabStore = create((set, get) => ({
     } catch (error) {
       console.error('Failed to preload Pyodide:', error);
     }
-    
+
     set({ loadingStatus: 'Finalizing workspace...', loadingProgress: 95 });
     await new Promise(r => setTimeout(r, 600));
 
@@ -418,8 +422,8 @@ const useLabStore = create((set, get) => ({
     });
 
     set({
-      projectId: 'demo',
-      projectName: 'Weather AI App',
+      projectId: 'demo1',
+      projectName: 'E-commerce Website',
       files: DEMO_FILES,
       milestones: initialMilestones,
       currentMilestoneId: 'm1',
@@ -447,6 +451,157 @@ const useLabStore = create((set, get) => ({
       userEnvironment,
       showOnboarding: !userEnvironment,
     });
+  },
+
+  /**
+   * Load a real project from FastAPI backend
+   * @param {string} projectId - The project ID from FastAPI
+   * @param {boolean} isPurchased - Whether the user has purchased this project
+   */
+  loadRealProject: async (projectId, isPurchased = false) => {
+    set({ isLabLoading: true, loadingStatus: 'Loading project...', loadingProgress: 10 });
+
+    try {
+      // Fetch project data from Express API (MongoDB)
+      const { default: axios } = await import('axios');
+      const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
+      let token = localStorage.getItem('token');
+      if (!token) {
+        try {
+          const authData = JSON.parse(localStorage.getItem('auth-storage'));
+          token = authData?.state?.token;
+        } catch (e) {}
+      }
+
+      const { data: response } = await axios.get(`${EXPRESS_API_URL}/projects/${projectId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const projectData = response.project || response;
+
+      set({ loadingProgress: 30, loadingStatus: 'Preparing code files...' });
+
+      // Transform project milestones to Lab format
+      const labMilestones = (projectData.milestones || []).map((m, idx) => ({
+        id: `m${idx + 1}`,
+        title: m.name,
+        description: m.description,
+        status: idx === 0 ? 'active' : 'locked',
+        steps: m.steps?.map((s, sIdx) => ({
+          id: `m${idx + 1}-s${s.stepNumber || sIdx + 1}`,
+          title: s.title,
+          description: s.description,
+          status: idx === 0 && sIdx === 0 ? 'active' : 'locked',
+          codeBlocks: s.codeBlocks || [],
+          verificationSteps: s.verificationSteps,
+          hints: s.hints,
+        })) || [],
+      }));
+
+      set({ loadingProgress: 60, loadingStatus: 'Initializing environment...' });
+
+      // Preload Pyodide
+      try {
+        const { loadPyodide: loadPyo } = await import('pyodide');
+        const pyodideInstance = await loadPyo({
+          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
+        });
+        set({ pyodide: pyodideInstance });
+      } catch (error) {
+        console.error('Failed to preload Pyodide:', error);
+      }
+
+      set({ loadingProgress: 85, loadingStatus: 'Setting up workspace...' });
+
+      // Build editor files from the project's stored codeFiles
+      const extLangMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python' };
+      let initialFiles = [];
+
+      if (projectData.codeFiles && projectData.codeFiles.length > 0) {
+        initialFiles = projectData.codeFiles.map((cf, i) => {
+          const ext = (cf.filename || cf.path || '').split('.').pop()?.toLowerCase();
+          return {
+            id: `f${i + 1}`,
+            name: cf.filename || cf.path?.split('/').pop() || `file${i + 1}`,
+            language: extLangMap[ext] || cf.language || 'text',
+            isDirty: false,
+            status: 'clean',
+            content: cf.content || '',
+          };
+        });
+      }
+
+      // If no code files, create a welcome file
+      if (initialFiles.length === 0) {
+        initialFiles = [{
+          id: 'f1',
+          name: 'README.md',
+          language: 'markdown',
+          isDirty: false,
+          status: 'clean',
+          content: `# ${projectData.title}\n\n${projectData.description || ''}\n\nThis project has no embedded code files. Use the Download ZIP button on your dashboard to get the full source code.`,
+        }];
+      }
+
+      const savedEnv = localStorage.getItem('userEnvironment');
+      const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
+
+      // Get credits from auth store
+      let creditsFromAuth = 0;
+      try {
+        const authData = JSON.parse(localStorage.getItem('auth-storage'));
+        creditsFromAuth = authData?.state?.user?.credits || 0;
+      } catch (e) {}
+
+      set({
+        projectId: projectData._id || projectData.id,
+        projectName: projectData.title,
+        files: initialFiles,
+        milestones: labMilestones,
+        currentMilestoneId: labMilestones[0]?.id || null,
+        openTabs: [initialFiles[0].id],
+        activeFileId: initialFiles[0].id,
+        credits: creditsFromAuth,
+        consoleMode: 'javascript',
+        pythonLogs: [],
+        jsLogs: [],
+        aiMessages: [
+          {
+            role: 'ai',
+            content: `Welcome to **${projectData.title}**! I'll guide you through building this project step by step. ${labMilestones.length > 0 ? "Let's start with Milestone 1." : "Explore the code files on the left sidebar."}`,
+          },
+        ],
+        aiSuggestion: null,
+        leftSidebarOpen: true,
+        rightSidebarOpen: true,
+        bottomPanelOpen: true,
+        bottomPanelTab: 'console',
+        quizOpen: false,
+        profileMenuOpen: false,
+        saveFlash: false,
+        newFileDialogOpen: false,
+        fileToDelete: null,
+        livePreviewHtml: '',
+        insufficientCreditsError: false,
+        isPurchased,
+        isLabLoading: false,
+        loadingProgress: 100,
+        userEnvironment,
+        showOnboarding: !userEnvironment,
+      });
+    } catch (error) {
+      console.error('Failed to load project:', error);
+      set({
+        isLabLoading: false,
+        loadingProgress: 0,
+        aiMessages: [
+          {
+            role: 'ai',
+            content: `Error loading project: ${error.message}. Please try again from your dashboard.`,
+          },
+        ],
+      });
+      // Don't fall back to demo — just show the error
+    }
   },
 
   loadProjectData: (projectData) => set({
@@ -882,46 +1037,148 @@ const useLabStore = create((set, get) => ({
   setCurrentMilestone: (id) => set({ currentMilestoneId: id }),
   setInsufficientCreditsError: (show) => set({ insufficientCreditsError: show }),
 
-  addAiUserMessage: (content) => {
-    const { credits, deductCredit, setAiThinking, setInsufficientCreditsError } = get();
-    
+  /**
+   * Send a message to AI and get response from FastAPI backend
+   */
+  addAiUserMessage: async (content) => {
+    const { credits, deductCredit, setAiThinking, setInsufficientCreditsError, projectId, currentMilestoneId, milestones, files, updateFileContent, createFile } = get();
+
     // Check if user has enough credits
     if (credits < 2) {
       setInsufficientCreditsError(true);
       setTimeout(() => setInsufficientCreditsError(false), 3000);
       return;
     }
-    
+
+    // Add user message immediately
     set((s) => ({
       aiMessages: [...s.aiMessages, { role: 'user', content }]
     }));
     deductCredit(2);
     setAiThinking(true);
 
-    // Simulated AI Response using the new model
-    setTimeout(() => {
-      const mockResponse = AIResponse.fromAPI({
-        answer: "I've analyzed your request! I noticed a missing error handler in your API call. I've prepared a surgical fix for you.",
-        suggestedFiles: [
-          {
-            name: 'api.js',
-            action: 'edit',
-            original: "const res = await fetch(url);",
-            replacement: "try {\n  const res = await fetch(url);\n} catch (e) {\n  console.error('API Error:', e);\n}"
+    try {
+      // Extract milestone number from currentMilestoneId (e.g., 'm1' -> 1)
+      const milestoneNumber = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) : 1;
+
+      // Call FastAPI backend
+      const response = await milestonesApi.askMilestoneQuestion(
+        projectId || 'demo1', // Use demo1 if no project loaded
+        milestoneNumber,
+        content,
+        files
+      );
+
+      // Process structured response
+      const { answer, suggestedFiles = [], suggestedCommands = [] } = response;
+
+      // Apply file suggestions automatically
+      let feedbackMessage = '';
+      if (suggestedFiles.length > 0) {
+        suggestedFiles.forEach(file => {
+          if (file.action === 'create') {
+            createFile(file.name, file.suggestedCode);
+            feedbackMessage += `✓ Created ${file.name}. `;
+          } else if (file.action === 'edit') {
+            const existingFile = files.find(f => f.name === file.name);
+            if (existingFile) {
+              updateFileContent(existingFile.id, file.suggestedCode);
+              feedbackMessage += `✓ Updated ${file.name}. `;
+            }
           }
-        ],
-        suggestedCommands: ['npm test']
-      });
+        });
+      }
+
+      // Build AI response with code suggestions
+      const aiResponse = {
+        role: 'ai',
+        content: answer || 'I\'ve analyzed your request.',
+        responseModel: {
+          answer: answer || '',
+          suggestions: suggestedFiles.map(f => ({
+            name: f.name,
+            action: f.action,
+            suggestedCode: f.suggestedCode
+          })),
+          commands: suggestedCommands.map(cmd => ({ command: cmd }))
+        }
+      };
+
+      // Add feedback about applied changes
+      if (feedbackMessage) {
+        aiResponse.content = `${answer}\n\n${feedbackMessage}`;
+      }
+
+      set((s) => ({
+        aiMessages: [...s.aiMessages, aiResponse],
+        isAiThinking: false,
+      }));
+    } catch (error) {
+      console.error('AI API error:', error);
+      set((s) => ({
+        aiMessages: [...s.aiMessages, {
+          role: 'ai',
+          content: `I encountered an error while processing your question: ${error.message}. Please try again.`,
+        }],
+        isAiThinking: false,
+      }));
+    }
+  },
+
+  /**
+   * Ask AI for step-specific guidance
+   */
+  askStepQuestion: async (stepId, question) => {
+    const { credits, deductCredit, setAiThinking, projectId, currentMilestoneId, milestones } = get();
+
+    if (credits < 2) {
+      setInsufficientCreditsError(true);
+      setTimeout(() => setInsufficientCreditsError(false), 3000);
+      return;
+    }
+
+    set((s) => ({
+      aiMessages: [...s.aiMessages, { role: 'user', content: question }]
+    }));
+    deductCredit(2);
+    setAiThinking(true);
+
+    try {
+      // Find milestone and step numbers
+      const currentMilestone = milestones.find(m => m.id === currentMilestoneId);
+      const step = currentMilestone?.steps?.find(s => s.id === stepId);
+
+      if (!step) {
+        throw new Error('Step not found');
+      }
+
+      const milestoneNumber = parseInt(currentMilestoneId.replace('m', ''));
+      const stepNumber = step.title.includes('Step') ? parseInt(step.title.match(/Step (\d+)/)?.[1]) || 1 : 1;
+
+      const response = await milestonesApi.askStepQuestion(
+        projectId || 'demo1',
+        milestoneNumber,
+        stepNumber,
+        question
+      );
 
       set((s) => ({
         aiMessages: [...s.aiMessages, {
           role: 'ai',
-          content: mockResponse.answer,
-          responseModel: mockResponse // Store the full model for the UI
+          content: response.answer,
         }],
         isAiThinking: false,
       }));
-    }, 1500);
+    } catch (error) {
+      console.error('Step AI API error:', error);
+      set((s) => ({
+        aiMessages: [...s.aiMessages, {
+          role: 'ai',
+          content: `Error: ${error.message}`,
+        }],
+        isAiThinking: false,
+      }));
+    }
   },
 
   acceptAiSuggestion: (suggestion = null) => {
@@ -1059,7 +1316,53 @@ const useLabStore = create((set, get) => ({
     };
   }),
 
-  showQuiz: () => set({ quizOpen: true }),
+  showQuiz: async () => {
+    const { projectId, currentMilestoneId, milestones, setQuizLoading } = get();
+    const milestoneNumber = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) : 1;
+
+    try {
+      // Fetch quiz from FastAPI backend
+      const quizData = await milestonesApi.getMilestoneQuiz(
+        projectId || 'demo1',
+        milestoneNumber,
+        5 // Default 5 questions
+      );
+
+      set({
+        quizOpen: true,
+        currentQuiz: {
+          projectId: quizData.project_id,
+          milestoneName: quizData.milestone_name,
+          questions: quizData.quiz.map((q, idx) => ({
+            id: `q${idx + 1}`,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correct_answer,
+            explanation: q.explanation,
+          })),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to load quiz:', error);
+      // Fallback to demo quiz
+      set({
+        quizOpen: true,
+        currentQuiz: {
+          projectId: 'demo',
+          milestoneName: 'Demo Milestone',
+          questions: [
+            {
+              id: 'q1',
+              question: 'Demo Question',
+              options: ['Option A', 'Option B', 'Option C', 'Option D'],
+              correctAnswer: 'Option A',
+              explanation: 'This is a demo quiz question.',
+            },
+          ],
+        },
+      });
+    }
+  },
   closeQuiz: () => set({ quizOpen: false }),
 
   // Helpers

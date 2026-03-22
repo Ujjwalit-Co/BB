@@ -12,6 +12,7 @@ import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
 import OnboardingModal from '../components/lab/OnboardingModal';
 import CreditModal from '../components/lab/CreditModal';
 import UnlockConfirmationModal from '../components/lab/UnlockConfirmationModal';
+import { useParams } from 'react-router-dom';
 
 function MobileGuard() {
   return (
@@ -29,25 +30,54 @@ function MobileGuard() {
 }
 
 export default function Lab() {
+  const { id: routeProjectId } = useParams();
   const {
     initDemoProject,
+    loadRealProject,
+    projectId,
     leftSidebarOpen, rightSidebarOpen,
     toggleLeftSidebar, toggleRightSidebar,
     quizOpen, closeQuiz, proceedToNextMilestone,
     saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId,
-    showOnboarding
+    showOnboarding, isLabLoading
   } = useLabStore();
   const { getProfile } = useAuthStore();
 
   const [isMobile, setIsMobile] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
     const prepareLab = async () => {
       await getProfile(); // Refresh user data from server
-      await initDemoProject(); // Then initialize lab
+      
+      // Prioritize URL parameter, fallback to sessionStorage
+      const targetProjectId = routeProjectId || sessionStorage.getItem('pendingProjectId');
+      
+      if (targetProjectId && !hasInitialized && !isLabLoading) {
+        // We have a target ID
+        const isPurchased = sessionStorage.getItem('projectPurchased') === 'true';
+        sessionStorage.removeItem('pendingProjectId');
+        sessionStorage.removeItem('projectPurchased');
+        
+        loadRealProject(targetProjectId, isPurchased);
+        setHasInitialized(true);
+      } else if (!targetProjectId && !hasInitialized && !isLabLoading) {
+        // No project pending, load demo
+        initDemoProject();
+        setHasInitialized(true);
+      }
     };
     prepareLab();
+  }, [routeProjectId, hasInitialized, isLabLoading]);
+
+  // Cleanup sessionStorage on unmount
+  useEffect(() => {
+    return () => {
+      sessionStorage.removeItem('pendingProjectId');
+      sessionStorage.removeItem('projectPurchased');
+    };
   }, []);
+
 
   // Global Ctrl+S override
   useEffect(() => {

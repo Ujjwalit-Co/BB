@@ -1,13 +1,36 @@
 import React, { useEffect } from 'react';
 import usePaymentStore from '../store/usePaymentStore';
 import useAuthStore from '../store/useAuthStore';
-import { Package, CreditCard, ChevronRight } from 'lucide-react';
+import { Package, CreditCard, ChevronRight, Download, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { projectsExpressApi } from '../api/express';
 
 export default function Dashboard() {
   const { orders, fetchMyOrders } = usePaymentStore();
   const { user, token } = useAuthStore();
   const navigate = useNavigate();
+  const [downloadingId, setDownloadingId] = React.useState(null);
+
+  const handleDownload = async (projectId, title) => {
+    try {
+      setDownloadingId(projectId);
+      const blob = await projectsExpressApi.download(projectId);
+      // If blob is null, the API opened a URL redirect in a new tab
+      if (!blob) return;
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${title.replace(/\s+/g, '_').toLowerCase()}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download project files. Please try again later.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -85,25 +108,45 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-white/10">
-            {purchasedProjects.map((project) => (
-              <div key={project._id} className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                <div className="flex items-center gap-4">
-                  {project.thumbnail?.secure_url && (
-                    <img src={project.thumbnail.secure_url} alt={project.title} className="w-16 h-16 rounded-xl object-cover bg-slate-100 dark:bg-white/5" />
-                  )}
-                  <div>
-                    <h3 className="font-semibold text-lg">{project.title || "Unknown Project"}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Purchased on {new Date(project.createdAt).toLocaleDateString()}</p>
+            {purchasedProjects.map((purchase) => {
+              const project = purchase.project;
+              if (!project) return null; // Defensive check for orphaned purchases
+              
+              return (
+                <div key={purchase._id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-4">
+                    {project.thumbnail?.secure_url ? (
+                      <img src={project.thumbnail.secure_url} alt={project.title} className="w-16 h-16 rounded-xl object-cover bg-slate-100 dark:bg-white/5" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center">
+                        <Package className="text-slate-400" size={24} />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-bold text-lg">{project.title || "Unknown Project"}</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Purchased on {new Date(purchase.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                    <button 
+                      onClick={() => handleDownload(project._id, project.title || 'project')}
+                      disabled={downloadingId === project._id}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors disabled:opacity-50"
+                    >
+                      {downloadingId === project._id ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+                      <span className="hidden sm:inline">Download ZIP</span>
+                      <span className="sm:hidden">ZIP</span>
+                    </button>
+                    <button 
+                      onClick={() => navigate(`/lab/${project._id}`)}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-indigo-500/20"
+                    >
+                      Open in Lab <ChevronRight size={18} />
+                    </button>
                   </div>
                 </div>
-                <button 
-                  onClick={() => navigate(`/lab/${project._id}`)}
-                  className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-700 dark:hover:text-indigo-300"
-                >
-                  Open Project <ChevronRight size={18} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

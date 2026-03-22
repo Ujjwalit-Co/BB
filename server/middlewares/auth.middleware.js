@@ -1,46 +1,49 @@
-import User from '../models/user.model.js';
-import AppError from '../Utils/error.util.js';
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-const isLoggedIn = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    const { token } = req.cookies || {};
-    
-    // Prioritize Authorization header (Bearer token) over cookie for API reliability
-    const jwtToken = (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null) || token;
+export const protect = async (req, res, next) => {
+  try {
+    let token;
 
-    if (!jwtToken) {
-        return next(new AppError('Please login again to access', 401));
+    // Check for Bearer token in Authorization header
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: "Not authorized, no token" });
     }
 
     try {
-        const userDetails = await jwt.verify(jwtToken, process.env.JWT_SECRET);
-        req.user = userDetails;
-        next();
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Find user and attach to request
+      req.user = await User.findById(decoded.id).select("-password");
+
+      if (!req.user) {
+        return res.status(401).json({ message: "User not found, not authorized" });
+      }
+
+      next();
     } catch (error) {
-        return next(new AppError('Invalid or expired token, please login again', 401));
+      return res.status(401).json({ message: "Token invalid or expired" });
     }
-}
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
 
-const authorizedRoles = (...roles) => async (req, res, next) => {
-    const currentUserRoles = req.user.role;
-
-    if(!roles.includes(currentUserRoles)){
-        return next(new AppError('You do no have permission to access this route',403));
-    }
-    next();
-}
-
-const authorizeSubscriber = async (req,  res, next)=>{
-    const user = await User.findById(req.user.id);
-    if(user.role !== 'ADMIN' && user.subscription.status !== 'ACTIVE'){
-        return next(new AppError('please subscribe to access this route!',403));
+// Role-based authorization
+export const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `User role '${req.user.role}' is not authorized to access this route`,
+      });
     }
     next();
-}
-
-export{
-    isLoggedIn,
-    authorizedRoles,
-    authorizeSubscriber
-}
+  };
+};

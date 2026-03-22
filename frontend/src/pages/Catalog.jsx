@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import usePaymentStore from '../store/usePaymentStore';
-import { ShoppingCart, Loader2 } from 'lucide-react';
-import productService from '../api/product';
+import { ShoppingCart, Loader2, Sparkles } from 'lucide-react';
+import { projectsExpressApi } from '../api/express';
 
 export default function Catalog() {
+  const navigate = useNavigate();
   const { setCheckoutModalOpen } = usePaymentStore();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const data = await productService.getProducts();
-        setProjects(data);
+        const response = await projectsExpressApi.getAll();
+        setProjects(response.projects || []);
       } catch (error) {
         console.error("Error fetching catalog:", error);
+        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -32,24 +36,78 @@ export default function Catalog() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-4xl font-black mb-8">Explore Projects</h1>
+      <div className="mb-8">
+        <h1 className="text-4xl font-black mb-2">Explore Projects</h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          Choose a project to buy or build with AI guidance
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500">
+          Failed to load projects: {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {projects.length > 0 ? (
           projects.map((project) => (
-            <div key={project._id} className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden hover:shadow-xl transition-all group">
-              <div className="h-48 overflow-hidden relative">
-                <img src={project.thumbnail?.secure_url} alt={project.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute top-4 right-4 bg-white/90 dark:bg-black/90 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
-                  ₹{project.price}
+            <div
+              key={project._id}
+              className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden hover:shadow-xl transition-all group cursor-pointer"
+              onClick={() => navigate(`/project/${project._id}`)}
+            >
+              <div className="h-48 overflow-hidden relative bg-linear-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+                {project.thumbnail?.secure_url ? (
+                  <img
+                    src={project.thumbnail.secure_url}
+                    alt={project.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <Sparkles className="text-indigo-500/50" size={64} />
+                )}
+                <div className="absolute top-4 right-4 bg-white/90 dark:bg-black/90 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm flex items-center gap-1">
+                  <span>₹{project.price}</span>
                 </div>
               </div>
               <div className="p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                    project.badge === 'diamond' ? 'bg-cyan-500/10 text-cyan-500' :
+                    project.badge === 'gold' ? 'bg-yellow-500/10 text-yellow-500' :
+                    'bg-slate-500/10 text-slate-500'
+                  }`}>
+                    {project.badge || 'silver'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 text-xs font-bold uppercase tracking-wider">
+                    {project.category}
+                  </span>
+                </div>
                 <h3 className="text-xl font-bold mb-2">{project.title}</h3>
-                <p className="text-slate-600 dark:text-slate-400 text-sm mb-6 line-clamp-2">
+                <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
                   {project.description}
                 </p>
-                <button 
-                  onClick={() => setCheckoutModalOpen(true, project)}
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {(project.techStack || []).slice(0, 3).map((tech) => (
+                    <span
+                      key={tech}
+                      className="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-xs rounded-md font-medium"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                  {(project.techStack?.length || 0) > 3 && (
+                    <span className="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-xs rounded-md font-medium">
+                      +{(project.techStack.length || 4) - 3}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCheckoutModalOpen(true, project);
+                  }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >
                   <ShoppingCart size={18} />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShieldCheck, CreditCard } from 'lucide-react';
+import { X, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import usePaymentStore from '../store/usePaymentStore';
 import useAuthStore from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,12 @@ export default function CheckoutModal() {
   const navigate = useNavigate();
 
   if (!checkoutModalOpen || !currentProduct) return null;
+
+  const handleDemoBypass = () => {
+    // DEMO MODE: Skip payment and go to project details
+    setCheckoutModalOpen(false);
+    navigate(`/project/${currentProduct.id}`);
+  };
 
   const handleCheckout = () => {
     if (!user) {
@@ -56,18 +62,29 @@ export default function CheckoutModal() {
 
           {/* Body */}
           <div className="p-6 space-y-6">
+            {/* DEMO MODE BANNER */}
+            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl p-4 flex items-start gap-3">
+              <Zap className="text-indigo-500 shrink-0" size={20} />
+              <div>
+                <h4 className="font-bold text-sm text-indigo-500">DEMO MODE</h4>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  Payment gateway not connected yet. Click "Skip & Continue to Project" to test the Lab and AI features.
+                </p>
+              </div>
+            </div>
+
             <div className="flex gap-4 items-start">
-              {currentProduct.thumbnail?.secure_url && (
-                <img 
-                  src={currentProduct.thumbnail.secure_url} 
-                  alt={currentProduct.title} 
+              {currentProduct.image && (
+                <img
+                  src={currentProduct.image}
+                  alt={currentProduct.title}
                   className="w-20 h-20 object-cover rounded-xl bg-slate-100 dark:bg-white/5"
                 />
               )}
               <div>
                 <h3 className="font-semibold text-lg">{currentProduct.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                  {currentProduct.description}
+                  {currentProduct.summary}
                 </p>
               </div>
             </div>
@@ -94,16 +111,28 @@ export default function CheckoutModal() {
           </div>
 
           {/* Footer */}
-          <div className="p-6 pt-0">
+          <div className="p-6 pt-0 space-y-3">
+            {/* DEMO BYPASS BUTTON */}
+            <button
+              onClick={handleDemoBypass}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+            >
+              <Zap size={18} />
+              Skip & Continue to Project
+            </button>
+
             <button
               onClick={handleCheckout}
               disabled={isProcessing}
-              className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
             >
               {isProcessing ? (
                 <span className="animate-pulse">Processing...</span>
               ) : (
-                <>Pay ₹{currentProduct.price}</>
+                <>
+                  <CreditCard size={18} />
+                  Pay ₹{currentProduct.price}
+                </>
               )}
             </button>
           </div>

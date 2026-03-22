@@ -1,4 +1,4 @@
-import { Sun, Moon, Terminal, Zap } from 'lucide-react';
+import { Sun, Moon, Terminal, Zap, Shield, Package } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
@@ -46,7 +46,20 @@ export default function Navbar() {
         <Link to="/" className="hover:text-blue-500 transition-colors">Home</Link>
         <Link to="/catalog" className="hover:text-blue-500 transition-colors">Catalog</Link>
         <Link to="/dashboard" className="hover:text-blue-500 transition-colors">Dashboard</Link>
-        <Link to="/seller" className="hover:text-blue-500 transition-colors">Sellers</Link>
+        
+        {/* Role-based navigation */}
+        {user?.role === 'admin' ? (
+          <Link to="/admin" className="hover:text-blue-500 transition-colors flex items-center gap-1.5">
+            <Shield size={14} /> Admin
+          </Link>
+        ) : user?.role === 'seller' ? (
+          <Link to="/seller" className="hover:text-blue-500 transition-colors flex items-center gap-1.5">
+            <Package size={14} /> Seller
+          </Link>
+        ) : (
+          <Link to="/seller" className="hover:text-blue-500 transition-colors">Sellers</Link>
+        )}
+        
         <Link to="/lab/demo" className="hover:text-blue-500 transition-colors text-blue-600 dark:text-blue-400">The Lab</Link>
         
         <div className="h-4 w-px bg-slate-200 dark:bg-white/10" />
@@ -65,7 +78,7 @@ export default function Navbar() {
               <span className="text-xs font-bold">{credits}</span>
             </Link>
             <span className="text-slate-700 dark:text-slate-300 hidden md:block">
-              Hi, <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{user.fullName?.split(' ')[0]}</span>
+              Hi, <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{user.fullName?.split(' ')[0] || user.name?.split(' ')[0]}</span>
             </span>
             <button 
               onClick={logout}
@@ -83,3 +96,4 @@ export default function Navbar() {
     </nav>
   );
 }
+
