@@ -290,10 +290,83 @@ const updateUser = async (req, res, next)=>{
     });
 };
 
+const deductCredits = async (req, res, next) => {
+    try {
+        const { id } = req.user;
+        const { amount } = req.body;
+
+        const user = await User.findById(id);
+        if (!user) {
+            return next(new AppError('User not found', 404));
+        }
+
+        if (user.credits < amount) {
+            return next(new AppError('Insufficient credits', 400));
+        }
+
+        user.credits -= amount;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Credits deducted successfully',
+            credits: user.credits
+        });
+    } catch (e) {
+        return next(new AppError(e.message, 500));
+    }
+};
 
 
+const unlockMilestone = async (req, res, next) => {
+    try {
+        const { id } = req.user;
+        const { projectId, milestoneId } = req.body;
 
-export{
+        if (!projectId || !milestoneId) {
+            return next(new AppError('Project ID and Milestone ID are required', 400));
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return next(new AppError('User not found', 404));
+        }
+
+        // Check if milestone already unlocked
+        const alreadyUnlocked = user.unlockedMilestones.some(
+            m => m.projectId === projectId && m.milestoneId === milestoneId
+        );
+
+        if (alreadyUnlocked) {
+            return res.status(200).json({
+                success: true,
+                message: 'Milestone already unlocked',
+                credits: user.credits,
+                unlockedMilestones: user.unlockedMilestones
+            });
+        }
+
+        if (user.credits < 50) {
+            return next(new AppError('Insufficient credits to unlock this milestone (requires 50 credits)', 400));
+        }
+
+        user.credits -= 50;
+        user.unlockedMilestones.push({ projectId, milestoneId });
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Milestone unlocked successfully',
+            credits: user.credits,
+            unlockedMilestones: user.unlockedMilestones
+        });
+    } catch (e) {
+        return next(new AppError(e.message, 500));
+    }
+};
+
+
+export {
     register,
     login,
     logout,
@@ -301,8 +374,10 @@ export{
     forgotPassword,
     resetPassword,
     changePassword,
-    updateUser
-}
+    updateUser,
+    deductCredits,
+    unlockMilestone
+};
 
 
 

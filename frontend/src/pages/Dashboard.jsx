@@ -47,7 +47,10 @@ export default function Dashboard() {
               <h3 className="text-3xl font-bold">{user.credits || 0}</h3>
             </div>
           </div>
-          <button className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+          <button 
+            onClick={() => navigate('/buy-credits')}
+            className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+          >
             Buy Credits
           </button>
         </div>

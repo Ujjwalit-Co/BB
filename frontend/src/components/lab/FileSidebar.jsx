@@ -8,15 +8,26 @@ export default function FileSidebar() {
     files, openFile, activeFileId, milestones, currentMilestoneId,
     toggleLeftSidebar, createFile, newFileDialogOpen, toggleNewFileDialog,
     completeStep, renameFile, deleteFile, triggerGuideForStep,
-    fileToDelete, setFileToDelete
+    fileToDelete, setFileToDelete, unlockMilestone, projectId
   } = useLabStore();
 
   const [milestonesExpanded, setMilestonesExpanded] = useState({});
+  const [isUnlocking, setIsUnlocking] = useState(null); // stores milestoneId being unlocked
   const [newFileName, setNewFileName] = useState('');
   
   // Rename state
   const [editingFileId, setEditingFileId] = useState(null);
   const [editingName, setEditingName] = useState('');
+
+  const handleUnlock = async (e, milestoneId) => {
+    e.stopPropagation();
+    setIsUnlocking(milestoneId);
+    const success = await unlockMilestone(projectId || 'demo', milestoneId);
+    setIsUnlocking(null);
+    if (success) {
+      setMilestonesExpanded(prev => ({ ...prev, [milestoneId]: true }));
+    }
+  };
 
   const handleCreateFile = () => {
     if (newFileName.trim()) {
@@ -48,7 +59,7 @@ export default function FileSidebar() {
 
   const toggleMilestone = (id) => {
     const milestone = milestones.find(m => m.id === id);
-    if (milestone?.status === 'locked') return;
+    if (milestone?.status === 'locked' && !milestone.isPayed) return;
     setMilestonesExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
@@ -161,19 +172,32 @@ export default function FileSidebar() {
         </div>
         <ul className="lab-milestone-list">
           {milestones.map((milestone, idx) => {
+            const isLocked = milestone.status === 'locked';
             const canExpand = canExpandMilestone(milestone);
             const isExpanded = canExpand && (milestonesExpanded[milestone.id] ?? (milestone.id === currentMilestoneId));
 
             return (
               <li key={milestone.id} className={`lab-milestone ${milestone.status}`}>
-                <button
-                  className={`lab-milestone-header ${!canExpand ? 'disabled' : ''}`}
-                  onClick={() => toggleMilestone(milestone.id)}
-                >
-                  {canExpand ? (isExpanded ? <ChevronDown size={14} className="lab-milestone-chevron" /> : <ChevronRight size={14} className="lab-milestone-chevron" />) : <Lock size={12} className="lab-milestone-chevron lab-step-locked" />}
-                  <span className="lab-milestone-idx">M{idx + 1}</span>
-                  <span className="lab-milestone-title">{milestone.title}</span>
-                </button>
+                <div className="lab-milestone-header-container">
+                  <button
+                    className={`lab-milestone-header ${isLocked && !milestone.isPayed ? 'disabled' : ''}`}
+                    onClick={() => toggleMilestone(milestone.id)}
+                  >
+                    {canExpand ? (isExpanded ? <ChevronDown size={14} className="lab-milestone-chevron" /> : <ChevronRight size={14} className="lab-milestone-chevron" />) : <Lock size={12} className="lab-milestone-chevron lab-step-locked" />}
+                    <span className="lab-milestone-idx">M{idx + 1}</span>
+                    <span className="lab-milestone-title">{milestone.title}</span>
+                  </button>
+                  
+                  {isLocked && milestone.isPayed && (
+                    <button 
+                      className="lab-milestone-unlock-btn" 
+                      onClick={(e) => handleUnlock(e, milestone.id)}
+                      disabled={isUnlocking === milestone.id}
+                    >
+                      {isUnlocking === milestone.id ? 'Unlocking...' : 'Unlock • 50 Cr'}
+                    </button>
+                  )}
+                </div>
 
                 {isExpanded && milestone.steps && (
                   <ul className="lab-step-list">

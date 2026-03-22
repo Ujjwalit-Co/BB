@@ -48,6 +48,22 @@ const userSchema = new Schema({
             type: Schema.Types.ObjectId,
             ref: 'Project'
         }
+    ],
+    credits: {
+        type: Number,
+        default: 70
+    },
+    unlockedMilestones: [
+        {
+            projectId: {
+                type: String,
+                required: true
+            },
+            milestoneId: {
+                type: String,
+                required: true
+            }
+        }
     ]
 },{
     timestamps: true

@@ -9,6 +9,8 @@ import Dashboard from './pages/Dashboard';
 import SellerPortal from './pages/SellerPortal';
 import Auth from './pages/Auth';
 import Lab from './pages/Lab';
+import BuyCredits from './pages/BuyCredits';
+import { Toaster } from 'react-hot-toast';
 import CheckoutModal from './components/CheckoutModal';
 
 function AppContent() {
@@ -30,10 +32,12 @@ function AppContent() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/seller" element={<SellerPortal />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/buy-credits" element={<BuyCredits />} />
         </Routes>
       </main>
       <Footer />
       <CheckoutModal />
+      <Toaster position="top-right" />
     </div>
   );
 }

@@ -229,6 +229,7 @@ const DEMO_MILESTONES = [
     id: 'm1',
     title: 'Project Setup',
     status: 'active', // 'active' | 'completed' | 'locked'
+    isPayed: false,
     steps: [
       { id: 's1', title: 'Create file structure', status: 'completed' },
       { id: 's2', title: 'Build UI layout', status: 'completed' },
@@ -240,6 +241,7 @@ const DEMO_MILESTONES = [
     id: 'm2',
     title: 'API Integration',
     status: 'locked',
+    isPayed: true,
     steps: [
       { id: 's4', title: 'Create fetchWeather function', status: 'locked' },
       { id: 's5', title: 'Add error handling', status: 'locked' },
@@ -251,6 +253,7 @@ const DEMO_MILESTONES = [
     id: 'm3',
     title: 'Polish & Deploy',
     status: 'locked',
+    isPayed: true,
     steps: [
       { id: 's7', title: 'Add loading states', status: 'locked' },
       { id: 's8', title: 'Responsive design', status: 'locked' },
@@ -312,7 +315,7 @@ const useLabStore = create((set, get) => ({
   currentMilestoneId: null,
 
   // Economy & AI State
-  credits: 20,
+  credits: 0,
   isAiThinking: false,
   isLabLoading: false,
   loadingProgress: 0,
@@ -330,6 +333,10 @@ const useLabStore = create((set, get) => ({
   fileToDelete: null, // id of file to delete (shows modal)
   livePreviewHtml: '', // only updates on Run or Save
   insufficientCreditsError: false, // shown when credits < 2
+  creditModalOpen: false,
+  confirmationModalOpen: false,
+  pendingUnlock: null, // { projectId, milestoneId }
+  requiredCredits: 0,
   showOnboarding: false,
   userEnvironment: null,
 
@@ -346,6 +353,8 @@ const useLabStore = create((set, get) => ({
   // --- ACTIONS ---
 
   setAiInput: (input) => set({ aiInput: input }),
+
+  setCredits: (amount) => set({ credits: amount }),
 
   setUserEnvironment: (env) => {
     set({ userEnvironment: env, showOnboarding: false });
@@ -386,15 +395,37 @@ const useLabStore = create((set, get) => ({
     const savedEnv = localStorage.getItem('userEnvironment');
     const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
 
+    // Sync from auth store
+    let unlockedFromAuth = [];
+    let creditsFromAuth = 0;
+    try {
+      const authData = JSON.parse(localStorage.getItem('auth-storage'));
+      unlockedFromAuth = authData?.state?.user?.unlockedMilestones || [];
+      creditsFromAuth = authData?.state?.user?.credits || 0;
+    } catch (e) {
+      console.error('Failed to sync from auth store', e);
+    }
+
+    const initialMilestones = DEMO_MILESTONES.map(m => {
+      const isUnlocked = unlockedFromAuth.some(u => u.projectId === 'demo' && u.milestoneId === m.id);
+      if (isUnlocked) {
+        return { ...m, status: 'active' };
+      }
+      if (m.isPayed && !isUnlocked) {
+        return { ...m, status: 'locked' };
+      }
+      return m;
+    });
+
     set({
       projectId: 'demo',
       projectName: 'Weather AI App',
       files: DEMO_FILES,
-      milestones: DEMO_MILESTONES,
+      milestones: initialMilestones,
       currentMilestoneId: 'm1',
       openTabs: ['f1', 'f2'],
       activeFileId: 'f1',
-      credits: 20,
+      credits: creditsFromAuth,
       consoleMode: 'javascript',
       pythonLogs: [],
       jsLogs: [],
@@ -730,7 +761,124 @@ const useLabStore = create((set, get) => ({
 
   // AI Operations
   setAiThinking: (status) => set({ isAiThinking: status }),
-  deductCredit: (amount = 2) => set((state) => ({ credits: Math.max(0, state.credits - amount) })),
+  deductCredit: async (amount = 2) => {
+    try {
+      // Get token from persist store or individual item
+      let token = localStorage.getItem('token');
+      if (!token) {
+        const authData = JSON.parse(localStorage.getItem('auth-storage'));
+        token = authData?.state?.token;
+      }
+      
+      if (!token) return;
+      
+      const { data } = await import('axios').then(m => m.default.post(`${import.meta.env.VITE_BACKEND_URL}/user/deduct-credits`, 
+        { amount },
+        { headers: { Authorization: `Bearer ${token}` } }
+      ));
+      
+      if (data.success) {
+        set({ credits: data.credits });
+        // Also update useAuthStore user if possible, or just rely on this
+      }
+    } catch (error) {
+      console.error('Failed to deduct credits:', error);
+      // Fallback to local deduction if needed, or just let it be
+      set((state) => ({ credits: Math.max(0, state.credits - amount) }));
+    }
+  },
+  toggleCreditModal: (open, cost = 0) => set({ creditModalOpen: open, requiredCredits: cost }),
+  setConfirmationModalOpen: (open) => set({ confirmationModalOpen: open }),
+  setPendingUnlock: (data) => set({ pendingUnlock: data }),
+
+  unlockMilestone: async (projectId, milestoneId) => {
+    // Try to get latest credits from auth-storage first for more accuracy
+    let currentCredits = get().credits;
+    try {
+      const authData = JSON.parse(localStorage.getItem('auth-storage'));
+      if (authData?.state?.user?.credits !== undefined) {
+        currentCredits = authData.state.user.credits;
+      }
+    } catch (e) {}
+
+    if (currentCredits < 50) {
+      set({ creditModalOpen: true, requiredCredits: 50 });
+      return false;
+    }
+
+    // If enough credits, show confirmation modal
+    set({ 
+      confirmationModalOpen: true, 
+      pendingUnlock: { projectId, milestoneId } 
+    });
+    return false; // Success will be handled in confirmUnlock
+  },
+
+  confirmUnlock: async () => {
+    const { pendingUnlock, setConfirmationModalOpen } = get();
+    if (!pendingUnlock) return false;
+
+    const { projectId, milestoneId } = pendingUnlock;
+    set({ confirmationModalOpen: false });
+
+    try {
+      // Prioritize token from auth-storage (main source of truth)
+      let token = null;
+      try {
+        const authData = JSON.parse(localStorage.getItem('auth-storage'));
+        token = authData?.state?.token;
+      } catch (e) {}
+
+      if (!token) {
+        token = localStorage.getItem('token');
+      }
+      
+      if (!token) {
+        alert("Authentication token missing. Please log in again.");
+        return false;
+      }
+
+      const { data } = await import('axios').then(m => m.default.post(`${import.meta.env.VITE_BACKEND_URL}/user/unlock-milestone`, 
+        { projectId, milestoneId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      ));
+
+      if (data.success) {
+        const { milestones } = get();
+        const updatedMilestones = milestones.map(m => 
+          m.id === milestoneId ? { ...m, status: 'active' } : m
+        );
+        
+        set({ 
+          credits: data.credits, 
+          milestones: updatedMilestones 
+        });
+
+        // Sync with useAuthStore correctly
+        try {
+          const { default: useAuthStore } = await import('./useAuthStore');
+          const authState = useAuthStore.getState();
+          if (authState.user) {
+            authState.setUser({
+              ...authState.user,
+              credits: data.credits,
+              unlockedMilestones: data.unlockedMilestones
+            });
+          }
+        } catch (e) {
+          console.error("Failed to sync auth store via state", e);
+        }
+        
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to unlock milestone:', error);
+      const message = error.response?.data?.message || 'Failed to unlock milestone';
+      alert(message);
+      return false;
+    }
+  },
+
   setCurrentMilestone: (id) => set({ currentMilestoneId: id }),
   setInsufficientCreditsError: (show) => set({ insufficientCreditsError: show }),
 

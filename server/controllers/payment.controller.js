@@ -5,6 +5,12 @@ import crypto from 'crypto';
 import razorpay from "../config/razorpayConfig.js";
 import Project from "../models/project.model.js";
 
+const CREDIT_PACKS = {
+    'pack1': { name: 'Starter Pack', credits: 100, price: 100 },
+    'pack2': { name: 'Pro Pack', credits: 500, price: 450 },
+    'pack3': { name: 'Expert Pack', credits: 1200, price: 1000 }
+};
+
 const getRazorPayApiKey = async (req, res) => {
     res.status(200).json({
         success: true,
@@ -15,19 +21,33 @@ const getRazorPayApiKey = async (req, res) => {
 
 const createOrder = async (req, res, next) => {
     try {
-        const { productId } = req.body;
-        const project = await Project.findById(productId);
-        if (!project) {
-            return next(new AppError('Project not found', 404));
+        const { productId, type, packId } = req.body;
+        let amount = 0;
+        let receipt = '';
+
+        if (type === 'credit') {
+            const pack = CREDIT_PACKS[packId];
+            if (!pack) {
+                return next(new AppError('Invalid credit pack selected', 400));
+            }
+            amount = pack.price * 100;
+            receipt = `receipt_credit_${packId}_${Date.now()}`;
+        } else {
+            const project = await Project.findById(productId);
+            if (!project) {
+                return next(new AppError('Project not found', 404));
+            }
+            amount = project.price * 100;
+            receipt = `receipt_${project._id}`;
         }
 
         const options = {
-            amount: project.price * 100, // in paise
+            amount, // in paise
             currency: "INR",
-            receipt: `receipt_${project._id}`,
+            receipt,
         };
 
-        console.log("Creating Razorpay order for project:", productId);
+        console.log("Creating Razorpay order for:", type || 'project', productId || packId);
         const order = await razorpay.orders.create(options);
         console.log("Razorpay order created:", order.id);
 
@@ -45,7 +65,7 @@ const createOrder = async (req, res, next) => {
 
 const verifyPayment = async (req, res, next) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, productId } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, productId, type, packId } = req.body;
         const { id } = req.user;
 
         const body = razorpay_order_id + "|" + razorpay_payment_id;
@@ -55,9 +75,6 @@ const verifyPayment = async (req, res, next) => {
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body.toString())
             .digest('hex');
-
-        console.log("Expected signature:", expectedSignature);
-        console.log("Received signature:", razorpay_signature);
 
         if (expectedSignature !== razorpay_signature) {
             console.error("Signature mismatch!");
@@ -72,7 +89,14 @@ const verifyPayment = async (req, res, next) => {
         });
 
         const user = await User.findById(id);
-        if (productId) {
+        
+        if (type === 'credit') {
+            const pack = CREDIT_PACKS[packId];
+            if (pack) {
+                user.credits = (user.credits || 0) + pack.credits;
+                await user.save();
+            }
+        } else if (productId) {
             // Check if project is already purchased to avoid duplicates
             const isAlreadyPurchased = user.purchasedProjects.some(
                 (p) => p.toString() === productId
@@ -87,6 +111,7 @@ const verifyPayment = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'Payment verified successfully',
+            credits: user.credits
         });
     } catch (e) {
         return next(new AppError(e.message, 500));

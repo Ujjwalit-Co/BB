@@ -729,11 +729,18 @@
   margin: 0;
 }
 
+.lab-milestone-header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+
 .lab-milestone-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
   padding: 6px 14px;
   font-size: 12.5px;
   font-weight: 600;
@@ -743,6 +750,29 @@
   cursor: pointer;
   text-align: left;
   transition: all var(--lab-transition);
+}
+
+.lab-milestone-unlock-btn {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--lab-accent);
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--lab-transition);
+  white-space: nowrap;
+}
+
+.lab-milestone-unlock-btn:hover {
+  background: var(--lab-accent-hover);
+  transform: translateY(-1px);
+}
+
+.lab-milestone-unlock-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .lab-milestone-header:hover:not(.disabled) {

@@ -3,14 +3,23 @@ import AppError from '../Utils/error.util.js';
 import jwt from 'jsonwebtoken';
 
 const isLoggedIn = async (req, res, next) => {
-    const {token} = req.cookies;
-    if(!token){
+    const authHeader = req.headers.authorization;
+    const { token } = req.cookies || {};
+    
+    // Prioritize Authorization header (Bearer token) over cookie for API reliability
+    const jwtToken = (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null) || token;
+
+    if (!jwtToken) {
         return next(new AppError('Please login again to access', 401));
     }
 
-    const userDetails = await jwt.verify(token, process.env.JWT_SECRET);
-    req.user = userDetails;
-    next();
+    try {
+        const userDetails = await jwt.verify(jwtToken, process.env.JWT_SECRET);
+        req.user = userDetails;
+        next();
+    } catch (error) {
+        return next(new AppError('Invalid or expired token, please login again', 401));
+    }
 }
 
 const authorizedRoles = (...roles) => async (req, res, next) => {

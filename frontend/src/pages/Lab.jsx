@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronsRight, ChevronsLeft, Monitor } from 'lucide-react';
 import useLabStore from '../store/useLabStore';
+import useAuthStore from '../store/useAuthStore';
 import LabHeader from '../components/lab/LabHeader';
 import FileSidebar from '../components/lab/FileSidebar';
 import EditorPane from '../components/lab/EditorPane';
@@ -9,6 +10,8 @@ import AiPanel from '../components/lab/AiPanel';
 import QuizModal from '../components/lab/QuizModal';
 import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
 import OnboardingModal from '../components/lab/OnboardingModal';
+import CreditModal from '../components/lab/CreditModal';
+import UnlockConfirmationModal from '../components/lab/UnlockConfirmationModal';
 
 function MobileGuard() {
   return (
@@ -34,11 +37,16 @@ export default function Lab() {
     saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId,
     showOnboarding
   } = useLabStore();
+  const { getProfile } = useAuthStore();
 
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    initDemoProject();
+    const prepareLab = async () => {
+      await getProfile(); // Refresh user data from server
+      await initDemoProject(); // Then initialize lab
+    };
+    prepareLab();
   }, []);
 
   // Global Ctrl+S override
@@ -160,6 +168,16 @@ export default function Lab() {
         {showOnboarding && (
           <OnboardingModal key="onboarding" />
         )}
+      </AnimatePresence>
+
+      {/* Credit Modal */}
+      <AnimatePresence>
+        <CreditModal />
+      </AnimatePresence>
+
+      {/* Unlock Confirmation Modal */}
+      <AnimatePresence>
+        <UnlockConfirmationModal />
       </AnimatePresence>
     </div>
   );

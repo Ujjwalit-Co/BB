@@ -1,10 +1,25 @@
+import { Sun, Moon, Terminal, Zap } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Terminal } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
+import useLabStore from '../store/useLabStore';
 
 export default function Navbar() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, getProfile } = useAuthStore();
+  const { credits, setCredits } = useLabStore();
+
+  useEffect(() => {
+    if (user && user.credits !== undefined) {
+      setCredits(user.credits);
+    }
+  }, [user, setCredits]);
+
+  useEffect(() => {
+    if (user) {
+      getProfile();
+    }
+  }, []); // Only on mount
+
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
@@ -45,6 +60,10 @@ export default function Navbar() {
         
         {user ? (
           <div className="flex items-center gap-4">
+            <Link to="/buy-credits" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all border border-blue-500/20">
+              <Zap size={14} fill="currentColor" />
+              <span className="text-xs font-bold">{credits}</span>
+            </Link>
             <span className="text-slate-700 dark:text-slate-300 hidden md:block">
               Hi, <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{user.fullName?.split(' ')[0]}</span>
             </span>
