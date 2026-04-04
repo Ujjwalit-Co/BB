@@ -119,10 +119,29 @@ export const verifyPayment = async (req, res) => {
       $inc: { purchases: 1 },
     });
 
+    // Grant bonus credits based on project badge
+    let bonusCredits = 0;
+    if (project.badge === 'silver') bonusCredits = 10;
+    else if (project.badge === 'gold') bonusCredits = 30;
+    else if (project.badge === 'diamond') bonusCredits = 60;
+
+    let updatedUser = null;
+    if (bonusCredits > 0) {
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { credits: bonusCredits } },
+        { new: true }
+      );
+    } else {
+      updatedUser = await User.findById(userId);
+    }
+
     res.json({
       success: true,
       message: "Purchase successful!",
       purchase,
+      bonusCredits,
+      newCreditBalance: updatedUser.credits
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

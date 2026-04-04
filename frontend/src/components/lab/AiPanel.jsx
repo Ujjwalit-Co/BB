@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
-import { ChevronsRight, Send, Check, X, Sparkles, ArrowRight, HelpCircle, AlertTriangle, User, Terminal } from 'lucide-react';
+import { ChevronsRight, Send, Check, X, Sparkles, ArrowRight, HelpCircle, AlertTriangle, User, Terminal, Zap, Coins } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
+import PaywallModal from './PaywallModal';
 
 export default function AiPanel() {
   const {
@@ -9,8 +10,11 @@ export default function AiPanel() {
     addAiUserMessage, milestones, currentMilestoneId,
     proceedToNextMilestone, showQuiz, setAiInput,
     insufficientCreditsError, setInsufficientCreditsError,
-    isLabLoading
+    isLabLoading, isSandbox, questionsRemaining,
+    messageInfo, credits, projectData,
   } = useLabStore();
+
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
@@ -272,7 +276,21 @@ export default function AiPanel() {
             onKeyDown={handleKeyDown}
             rows={1}
           />
-          <div className="flex items-center justify-end px-2.5 pb-2.5">
+          <div className="flex items-center justify-between px-3 pb-2.5">
+            <div className="text-[10px] font-bold text-[var(--lab-text-muted)] tracking-wide">
+              {isSandbox ? (
+                <span className="flex items-center gap-1"><Coins size={10} className="text-amber-500" /> {credits} credits</span>
+              ) : messageInfo.remaining > 0 ? (
+                <span className="text-emerald-500">{messageInfo.remaining} messages left</span>
+              ) : (
+                <button 
+                  className="text-amber-500 hover:text-amber-400 underline cursor-pointer"
+                  onClick={() => setShowPaywall(true)}
+                >
+                  {credits} credits • Buy more
+                </button>
+              )}
+            </div>
             <button
               className={`flex items-center justify-center px-3.5 py-1.5 rounded-lg transition-all font-black text-[10px] uppercase tracking-wider outline-none border-none ring-0 focus:ring-0 ${aiInput.trim()
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 active:scale-95'
@@ -287,6 +305,20 @@ export default function AiPanel() {
           </div>
         </div>
       </div>
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <PaywallModal
+          projectName={projectData?.title || 'Project'}
+          currentMilestoneIndex={0}
+          totalMilestones={milestones.length}
+          price={projectData?.price || 149}
+          messagesUsed={messageInfo.used}
+          messageLimit={messageInfo.limit}
+          isMessageLimit={true}
+          onContinueTrial={() => setShowPaywall(false)}
+        />
+      )}
     </aside>
   );
 }

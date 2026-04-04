@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 import CreditTransaction from "../models/CreditTransaction.js";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 
 // Credit packs definition
 const CREDIT_PACKS = {
@@ -25,9 +27,9 @@ export const getCreditBalance = async (req, res) => {
 };
 
 // =====================
-// PURCHASE CREDITS
+// CREATE CREDIT ORDER
 // =====================
-export const purchaseCredits = async (req, res) => {
+export const createCreditOrder = async (req, res) => {
   try {
     const { packId } = req.body;
     const pack = CREDIT_PACKS[packId];
@@ -36,8 +38,52 @@ export const purchaseCredits = async (req, res) => {
       return res.status(400).json({ message: "Invalid credit pack" });
     }
 
-    // For demo/testing: directly add credits
-    // In production: integrate with Razorpay payment verification
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const options = {
+      amount: pack.price * 100, // paise
+      currency: "INR",
+      receipt: `cred_rcp_${Date.now().toString().slice(-8)}_${Math.floor(Math.random() * 1000)}`,
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      order,
+      pack,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// =====================
+// VERIFY CREDIT PAYMENT
+// =====================
+export const verifyCreditPayment = async (req, res) => {
+  try {
+    const { paymentId, orderId, signature, packId } = req.body;
+    const pack = CREDIT_PACKS[packId];
+
+    if (!pack) {
+      return res.status(400).json({ message: "Invalid credit pack" });
+    }
+
+    // Verify Razorpay signature
+    const body = orderId + "|" + paymentId;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== signature) {
+      return res.status(400).json({ message: "Invalid payment signature" });
+    }
+
     const user = await User.findById(req.user._id);
     user.credits = (user.credits || 0) + pack.credits;
     await user.save();
@@ -56,7 +102,6 @@ export const purchaseCredits = async (req, res) => {
       success: true,
       message: `${pack.name} purchased! ${pack.credits} credits added.`,
       balance: user.credits,
-      pack,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -12,7 +12,7 @@ import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
 import OnboardingModal from '../components/lab/OnboardingModal';
 import CreditModal from '../components/lab/CreditModal';
 import UnlockConfirmationModal from '../components/lab/UnlockConfirmationModal';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function MobileGuard() {
   return (
@@ -31,15 +31,15 @@ function MobileGuard() {
 
 export default function Lab() {
   const { id: routeProjectId } = useParams();
+  const navigate = useNavigate();
   const {
-    initDemoProject,
     loadRealProject,
     projectId,
     leftSidebarOpen, rightSidebarOpen,
     toggleLeftSidebar, toggleRightSidebar,
     quizOpen, closeQuiz, proceedToNextMilestone,
     saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId,
-    showOnboarding, isLabLoading
+    showOnboarding, isLabLoading, isSandbox
   } = useLabStore();
   const { getProfile } = useAuthStore();
 
@@ -53,7 +53,7 @@ export default function Lab() {
       // Prioritize URL parameter, fallback to sessionStorage
       const targetProjectId = routeProjectId || sessionStorage.getItem('pendingProjectId');
       
-      if (targetProjectId && !hasInitialized && !isLabLoading) {
+      if (targetProjectId && !hasInitialized) {
         // We have a target ID
         const isPurchased = sessionStorage.getItem('projectPurchased') === 'true';
         sessionStorage.removeItem('pendingProjectId');
@@ -61,14 +61,14 @@ export default function Lab() {
         
         loadRealProject(targetProjectId, isPurchased);
         setHasInitialized(true);
-      } else if (!targetProjectId && !hasInitialized && !isLabLoading) {
-        // No project pending, load demo
-        initDemoProject();
+      } else if (!targetProjectId && !hasInitialized && !isSandbox) {
+        // No project pending and not sandbox—redirect to dashboard
         setHasInitialized(true);
+        navigate('/dashboard');
       }
     };
     prepareLab();
-  }, [routeProjectId, hasInitialized, isLabLoading]);
+  }, [routeProjectId, hasInitialized, isSandbox]);
 
   // Cleanup sessionStorage on unmount
   useEffect(() => {
@@ -104,12 +104,33 @@ export default function Lab() {
     closeQuiz();
     const { milestones, currentMilestoneId } = useLabStore.getState();
     const currentM = milestones.find(m => m.id === currentMilestoneId);
+    const assessmentStep = currentM?.steps?.find(s => s.title.toLowerCase().includes('assessment'));
     
-    // Mark the milestone as totally complete and open the Milestone Completed Modal
-    useLabStore.setState(s => ({
-      milestoneCompletedModalOpen: true,
-      milestones: s.milestones.map(m => m.id === s.currentMilestoneId ? { ...m, status: 'completed' } : m)
-    }));
+    if (assessmentStep) {
+      // Use the store's logic to complete the step. 
+      // Since it's an assessment, we already verified the pass in the QuizModal.
+      // We need a way to force complete it now.
+      
+      useLabStore.setState(s => {
+        const updatedMilestones = s.milestones.map(m => {
+          if (m.id !== s.currentMilestoneId) return m;
+          return {
+            ...m,
+            steps: m.steps.map(step => 
+              step.id === assessmentStep.id ? { ...step, status: 'completed' } : step
+            )
+          };
+        });
+
+        const updatedM = updatedMilestones.find(m => m.id === s.currentMilestoneId);
+        const allDone = updatedM?.steps.every(step => step.status === 'completed');
+
+        return {
+          milestones: updatedMilestones,
+          milestoneCompletedModalOpen: allDone
+        };
+      });
+    }
   };
 
   const handleMilestoneProceed = () => {

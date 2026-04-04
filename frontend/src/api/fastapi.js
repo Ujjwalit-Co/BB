@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000';
+const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8080';
 
 const fastapi = axios.create({
   baseURL: FASTAPI_URL,
@@ -50,7 +50,7 @@ export const milestonesApi = {
     return data;
   },
 
-  askMilestoneQuestion: async (projectId, milestoneNumber, question, files = []) => {
+  askMilestoneQuestion: async (projectId, milestoneNumber, question, files = [], projectContext = null) => {
     // Basic mapping to strip out large unnecessary UI state elements from files
     const cleanFiles = files.map(f => ({
       name: f.name,
@@ -58,10 +58,12 @@ export const milestonesApi = {
       language: f.language
     }));
 
+    console.log('Sending AI Ask Request:', { projectId, milestoneNumber, question, project_context: projectContext });
     const response = await fastapi.post(`/projects/${projectId}/milestones/${milestoneNumber}/ask`, {
       question,
       files: cleanFiles,
-      lab_mode: 'browser'
+      lab_mode: 'browser',
+      project_context: projectContext
     });
     return response.data;
   },

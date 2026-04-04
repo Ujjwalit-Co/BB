@@ -96,10 +96,12 @@ const projectSchema = new mongoose.Schema(
         },
       },
     ],
-    // Trial Settings
+    // Trial Settings (NEW MODEL)
     trialSettings: {
       isTrialAvailable: { type: Boolean, default: true },
-      trialMilestones: { type: Number, default: 1 }, // Number of free milestones
+      freeMilestones: { type: Number, default: 1 }, // Number of free milestones per project (always 1)
+      freeMessageLimit: { type: Number, default: 10 }, // Messages per milestone for free users
+      purchasedMessageLimit: { type: Number, default: 20 }, // Messages per milestone before credits kick in
     },
     // Download Links (full project)
     downloadLink: {
@@ -143,6 +145,21 @@ const projectSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Pre-save middleware to generate milestone and step IDs
+projectSchema.pre('save', function(next) {
+  if (this.milestones && this.milestones.length > 0) {
+    this.milestones = this.milestones.map((milestone, idx) => ({
+      ...milestone.toObject ? milestone.toObject() : milestone,
+      id: milestone.id || `m${idx + 1}`,
+      steps: (milestone.steps || []).map((step, stepIdx) => ({
+        ...step.toObject ? step.toObject() : step,
+        id: step.id || `m${idx + 1}-s${stepIdx + 1}`
+      }))
+    }));
+  }
+  next();
+});
 
 // Indexes for better query performance
 projectSchema.index({ category: 1, badge: 1 });

@@ -30,7 +30,7 @@ export default function UnlockConfirmationModal() {
 
         <h3 className="text-xl font-bold mb-2">Unlock Milestone</h3>
         <p className="text-slate-600 dark:text-slate-400 mb-6">
-          Would you like to unlock this milestone for <span className="font-bold text-slate-900 dark:text-white">50 credits</span>?
+          Would you like to unlock this milestone for <span className="font-bold text-slate-900 dark:text-white">70 credits</span>?
           <br />
           <span className="text-sm mt-2 block">You have <span className="text-indigo-600 font-bold">{credits} credits</span> available.</span>
         </p>

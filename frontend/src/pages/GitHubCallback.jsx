@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import useAuthStore from '../store/useAuthStore';
 
 export default function GitHubCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('processing');
   const [error, setError] = useState('');
+
+  const { token: authToken } = useAuthStore();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -18,17 +21,18 @@ export default function GitHubCallback() {
     }
 
     handleCallback(code);
-  }, []);
+  }, [authToken]);
 
   const handleCallback = async (code) => {
     try {
+      const token = authToken || localStorage.getItem('authToken');
       const response = await fetch(
         `${import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1'}/github/callback`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ code }),
         }

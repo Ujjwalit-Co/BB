@@ -103,6 +103,23 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
+    // Monthly Credit Refresh Logic
+    let creditsUpdated = false;
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    if (!user.lastCreditRefresh || user.lastCreditRefresh < oneMonthAgo) {
+      if (user.credits < 20) {
+        user.credits = 20;
+      }
+      user.lastCreditRefresh = new Date();
+      creditsUpdated = true;
+    }
+
+    if (creditsUpdated) {
+      await user.save();
+    }
+
     const token = await user.generateJWTToken();
 
     res.json({
@@ -131,6 +148,23 @@ export const getCurrentUser = async (req, res) => {
     const user = await User.findById(req.user._id).select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    // Monthly Credit Refresh Logic
+    let creditsUpdated = false;
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    if (!user.lastCreditRefresh || user.lastCreditRefresh < oneMonthAgo) {
+      if (user.credits < 20) {
+        user.credits = 20;
+      }
+      user.lastCreditRefresh = new Date();
+      creditsUpdated = true;
+    }
+
+    if (creditsUpdated) {
+      await user.save();
     }
 
     res.json({

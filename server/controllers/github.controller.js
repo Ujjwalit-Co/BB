@@ -29,7 +29,10 @@ export const connectGitHub = async (req, res) => {
   try {
     const clientId = process.env.GITHUB_CLIENT_ID;
     const redirectUri = `${process.env.FRONTEND_URL || "http://localhost:5173"}/seller/github-callback`;
-    const scope = "repo read:user";
+    
+    // Allow user to choose scope: 'public' = public repos only, 'all' = all repos
+    const accessLevel = req.query.access || "public";
+    const scope = accessLevel === "all" ? "repo read:user" : "public_repo read:user";
     const state = req.user?._id?.toString() || "anonymous";
 
     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;

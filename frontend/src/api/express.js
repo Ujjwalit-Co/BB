@@ -1,4 +1,5 @@
 import axios from 'axios';
+import useAuthStore from '../store/useAuthStore';
 
 const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
 
@@ -13,10 +14,11 @@ const axiosInstance = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token from Zustand store
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const authState = useAuthStore.getState();
+    const token = authState.token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -32,7 +34,8 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
+      // Clear auth state using Zustand
+      useAuthStore.getState().clearAuth();
       window.location.href = '/auth';
     }
     return Promise.reject(error);
@@ -115,6 +118,30 @@ export const projectsExpressApi = {
     const { data } = await axiosInstance.delete(`/projects/${projectId}`);
     return data;
   },
+  enhanceReadme: async (readme) => {
+    const { data } = await axiosInstance.post('/projects/enhance-readme', { readme });
+    return data;
+  },
+  enhanceSummary: async (summary, readme) => {
+    const { data } = await axiosInstance.post('/projects/enhance-summary', { summary, readme });
+    return data;
+  },
+  enhanceMilestones: async (milestones, readme) => {
+    const { data } = await axiosInstance.post('/projects/enhance-milestones', { milestones, readme });
+    return data;
+  },
+  uploadImages: async (files) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('images', file));
+    const { data } = await axiosInstance.post('/upload/project-images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  getMilestoneQuiz: async (projectId, milestoneNumber) => {
+    const { data } = await axiosInstance.get(`/projects/${projectId}/milestones/${milestoneNumber}/quiz`);
+    return data;
+  },
 };
 
 // ─── Purchase API ─────────────────────────────────────────
@@ -169,12 +196,27 @@ export const progressApi = {
     const { data } = await axiosInstance.get(`/progress/${projectId}/trial-status`);
     return data;
   },
+
+  askQuestion: async (projectId, payload) => {
+    // payload should include: milestoneIndex, question, files, projectContext, isSandbox
+    const { data } = await axiosInstance.post(`/progress/${projectId}/ask`, payload);
+    return data;
+  },
 };
 
 // ─── GitHub API ───────────────────────────────────────────
 export const githubApi = {
-  connect: () => {
-    window.location.href = `${EXPRESS_API_URL}/github/connect`;
+  connect: async (accessLevel = 'public') => {
+    try {
+      const { data } = await axiosInstance.get(`/github/connect?access=${accessLevel}`);
+      if (data.success && data.url) {
+        window.location.href = data.url;
+      }
+      return data;
+    } catch (error) {
+      console.error("Failed to connect GitHub:", error);
+      throw error;
+    }
   },
 
   disconnect: async () => {
@@ -228,8 +270,13 @@ export const creditsApi = {
     return data;
   },
 
-  purchaseCredits: async (packId) => {
-    const { data } = await axiosInstance.post('/credits/purchase', { packId });
+  createCreditOrder: async (packId) => {
+    const { data } = await axiosInstance.post('/credits/order', { packId });
+    return data;
+  },
+
+  verifyCreditPayment: async (paymentData) => {
+    const { data } = await axiosInstance.post('/credits/verify', paymentData);
     return data;
   },
 

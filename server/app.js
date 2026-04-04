@@ -15,6 +15,7 @@ import purchaseRoutes from './routes/purchase.routes.js';
 import githubRoutes from './routes/github.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import creditRoutes from './routes/credit.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
 
 // Import middleware
 import errorMiddleware from './middlewares/error.middleware.js';
@@ -49,6 +50,7 @@ app.use('/api/v1/purchases', purchaseRoutes);
 app.use('/api/v1/github', githubRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/credits', creditRoutes);
+app.use('/api/v1/upload', uploadRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {

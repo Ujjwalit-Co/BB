@@ -36,6 +36,17 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 20, // Free credits on signup
     },
+    lastCreditRefresh: {
+      type: Date,
+      default: Date.now,
+    },
+    // Track which projects user has used free trial on (max 3)
+    freeTrialProjects: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Project",
+      }
+    ],
     purchasedProjects: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -79,6 +90,22 @@ userSchema.methods = {
   // Match password
   matchPassword: async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
+  },
+
+  // Check if credits need monthly refresh and refresh if needed
+  refreshCreditsIfDue: function () {
+    const now = new Date();
+    const lastRefresh = this.lastCreditRefresh;
+    const daysSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60 * 24);
+
+    // If 30+ days have passed, refresh credits
+    if (daysSinceRefresh >= 30) {
+      this.credits = 20; // Reset to 20 free credits
+      this.lastCreditRefresh = now;
+      return this.save();
+    }
+
+    return Promise.resolve(this);
   },
 
   // Generate password reset token

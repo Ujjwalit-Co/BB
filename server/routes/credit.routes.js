@@ -1,7 +1,8 @@
 import express from "express";
 import {
   getCreditBalance,
-  purchaseCredits,
+  createCreditOrder,
+  verifyCreditPayment,
   consumeCredits,
   getCreditHistory,
   unlockMilestone,
@@ -16,7 +17,8 @@ router.use(protect);
 
 router.get("/balance", getCreditBalance);
 router.get("/packs", getCreditPacks);
-router.post("/purchase", purchaseCredits);
+router.post("/order", createCreditOrder);
+router.post("/verify", verifyCreditPayment);
 router.post("/consume", consumeCredits);
 router.get("/history", getCreditHistory);
 router.post("/unlock-milestone", unlockMilestone);

@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import usePaymentStore from '../store/usePaymentStore';
 import useAuthStore from '../store/useAuthStore';
-import { Package, CreditCard, ChevronRight, Download, Loader2 } from 'lucide-react';
+import useLabStore from '../store/useLabStore';
+import { Package, CreditCard, ChevronRight, Download, Loader2, Terminal, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { projectsExpressApi } from '../api/express';
 
@@ -10,6 +11,11 @@ export default function Dashboard() {
   const { user, token } = useAuthStore();
   const navigate = useNavigate();
   const [downloadingId, setDownloadingId] = React.useState(null);
+
+  const handleStartSandbox = () => {
+    useLabStore.getState().startSandbox();
+    navigate('/lab');
+  };
 
   const handleDownload = async (projectId, title) => {
     try {
@@ -50,98 +56,122 @@ export default function Dashboard() {
   const purchasedProjects = orders;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50/30 dark:bg-transparent pt-12 pb-24 px-4 sm:px-8">
+      <div className="max-w-7xl mx-auto space-y-10">
       
-      {/* Overview Section */}
+      {/* Header */}
       <div>
-        <h1 className="text-4xl font-black mb-2">Welcome Back, {user.fullName || user.name}</h1>
-        <p className="text-slate-500 dark:text-slate-400">Here's an overview of your account.</p>
+        <h1 className="text-4xl md:text-5xl font-black font-headline tracking-tight text-transparent bg-clip-text bg-linear-to-r from-indigo-700 to-cyan-500 dark:from-indigo-400 dark:to-cyan-300 mb-2">
+          Hey, {user.fullName || user.name} 👋
+        </h1>
+        <p className="text-slate-500 dark:text-slate-400 font-body">Welcome back to your learning hub.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Credits Card */}
-        <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400">
+        <div className="glass-card p-6 rounded-2xl flex items-center justify-between card-hover">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-linear-to-br from-indigo-500/20 to-indigo-500/5 rounded-2xl text-indigo-600 dark:text-indigo-400">
               <CreditCard size={32} />
             </div>
             <div>
-              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Available AI Credits</p>
-              <h3 className="text-3xl font-bold">{user.credits || 0}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">AI Credits</p>
+              <h3 className="text-4xl font-black text-slate-900 dark:text-white">{user.credits || 0}</h3>
             </div>
           </div>
           <button 
             onClick={() => navigate('/buy-credits')}
-            className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+            className="px-5 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-sm font-bold btn-press shadow-lg shadow-indigo-500/20"
           >
             Buy Credits
           </button>
         </div>
 
         {/* Projects Card */}
-        <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
+        <div className="glass-card p-6 rounded-2xl flex items-center justify-between card-hover">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-linear-to-br from-emerald-500/20 to-emerald-500/5 rounded-2xl text-emerald-600 dark:text-emerald-400">
               <Package size={32} />
             </div>
             <div>
-              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Purchased Projects</p>
-              <h3 className="text-3xl font-bold">{purchasedProjects.length}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Projects</p>
+              <h3 className="text-4xl font-black text-slate-900 dark:text-white">{purchasedProjects.length}</h3>
             </div>
           </div>
-          <button onClick={() => navigate('/catalog')} className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-            Browse Catalog
+          <button onClick={() => navigate('/catalog')} className="px-5 py-2.5 bg-linear-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold btn-press transition-all">
+            Browse More
+          </button>
+        </div>
+
+        {/* Sandbox Card */}
+        <div className="glass-card p-6 rounded-2xl flex items-center justify-between card-hover md:col-span-2 bg-linear-to-r from-slate-900 to-indigo-900 border-none text-white shadow-xl shadow-indigo-900/20">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-white/10 rounded-2xl">
+              <Terminal size={32} className="text-indigo-300" />
+            </div>
+            <div>
+              <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-1">Essential Practice</p>
+              <h3 className="text-2xl font-black">AI Sandbox Lab</h3>
+            </div>
+          </div>
+          <button 
+            onClick={handleStartSandbox}
+            className="px-6 py-3 bg-white text-indigo-900 rounded-xl text-sm font-bold shadow-lg shadow-white/10 hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2"
+          >
+            Start Coding <Zap size={16} className="text-amber-500" />
           </button>
         </div>
       </div>
 
       {/* Purchased Projects List */}
-      <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-slate-200 dark:border-white/10">
-          <h2 className="text-xl font-bold">Your Purchased Projects</h2>
+      <div className="glass-card border border-slate-200/50 dark:border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <h2 className="text-xl font-bold font-headline text-slate-900 dark:text-white">Your Projects</h2>
+          <span className="text-sm text-slate-500 dark:text-slate-400 font-body">{purchasedProjects.length} item{purchasedProjects.length !== 1 ? 's' : ''}</span>
         </div>
         
         {purchasedProjects.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            <Package size={48} className="mx-auto mb-4 opacity-50" />
-            <p>You haven't purchased any projects yet.</p>
+          <div className="p-16 text-center">
+            <Package size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+            <p className="text-slate-500 dark:text-slate-400 font-body font-medium mb-4">You haven't purchased any projects yet.</p>
+            <button onClick={() => navigate('/catalog')} className="px-6 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl font-bold text-sm btn-press shadow-lg shadow-indigo-500/20">Browse Catalog</button>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200 dark:divide-white/10">
+          <div className="divide-y divide-slate-100 dark:divide-white/5">
             {purchasedProjects.map((purchase) => {
               const project = purchase.project;
-              if (!project) return null; // Defensive check for orphaned purchases
+              if (!project) return null;
               
               return (
-                <div key={purchase._id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <div key={purchase._id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-white/3 transition-colors group">
                   <div className="flex items-center gap-4">
                     {project.thumbnail?.secure_url ? (
-                      <img src={project.thumbnail.secure_url} alt={project.title} className="w-16 h-16 rounded-xl object-cover bg-slate-100 dark:bg-white/5" />
+                      <img src={project.thumbnail.secure_url} alt={project.title} className="w-14 h-14 rounded-xl object-cover shadow-sm" />
                     ) : (
-                      <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center">
-                        <Package className="text-slate-400" size={24} />
+                      <div className="w-14 h-14 rounded-xl bg-linear-to-br from-indigo-500/10 to-cyan-500/10 flex items-center justify-center border border-slate-200 dark:border-white/10">
+                        <Package className="text-indigo-400" size={22} />
                       </div>
                     )}
                     <div>
-                      <h3 className="font-bold text-lg">{project.title || "Unknown Project"}</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">Purchased on {new Date(purchase.createdAt).toLocaleDateString()}</p>
+                      <h3 className="font-bold font-headline text-base text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">{project.title || 'Unknown Project'}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-body mt-0.5">Purchased on {new Date(purchase.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                  <div className="flex items-center gap-3 w-full md:w-auto mt-3 md:mt-0">
                     <button 
                       onClick={() => handleDownload(project._id, project.title || 'project')}
                       disabled={downloadingId === project._id}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors disabled:opacity-50"
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/8 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 rounded-xl font-semibold btn-press border border-slate-200 dark:border-white/10 disabled:opacity-50"
                     >
-                      {downloadingId === project._id ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                      <span className="hidden sm:inline">Download ZIP</span>
-                      <span className="sm:hidden">ZIP</span>
+                      {downloadingId === project._id ? <Loader2 className="animate-spin" size={17} /> : <Download size={17} />}
+                      <span className="hidden sm:inline text-sm">Download ZIP</span>
+                      <span className="sm:hidden text-sm">ZIP</span>
                     </button>
                     <button 
                       onClick={() => navigate(`/lab/${project._id}`)}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-indigo-500/20"
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl font-bold btn-press shadow-sm shadow-indigo-500/20 text-sm"
                     >
-                      Open in Lab <ChevronRight size={18} />
+                      Open Lab <ChevronRight size={17} />
                     </button>
                   </div>
                 </div>
@@ -151,6 +181,7 @@ export default function Dashboard() {
         )}
       </div>
 
+      </div>
     </div>
   );
 }

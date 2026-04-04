@@ -13,7 +13,7 @@ const userProgressSchema = new mongoose.Schema(
       required: true,
     },
 
-    // FREE TRIAL FIELDS
+    // FREE TRIAL & MESSAGE LIMITS (NEW MODEL)
     isFreeTrial: {
       type: Boolean,
       default: true,
@@ -22,14 +22,18 @@ const userProgressSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    trialExpiresAt: {
-      type: Date,
-      default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    // Message limits per milestone
+    messageLimits: {
+      freeTrialMessagesPerMilestone: { type: Number, default: 10 }, // Free users get 10 messages per milestone
+      purchasedMessagesPerMilestone: { type: Number, default: 20 }, // Purchased users get 20 messages per milestone before credits
     },
-    unlockedMilestones: {
-      type: Number,
-      default: 1, // Free trial users get 1 milestone
-    },
+    // Track messages used per milestone
+    messageCounts: [
+      {
+        milestoneIndex: { type: Number, required: true },
+        count: { type: Number, default: 0 },
+      }
+    ],
 
     // Progress Tracking
     currentMilestoneIndex: {
@@ -46,6 +50,10 @@ const userProgressSchema = new mongoose.Schema(
         },
       },
     ],
+    isSandbox: {
+      type: Boolean,
+      default: false,
+    },
 
     // Quiz Scores
     quizScores: [
@@ -114,10 +122,49 @@ userProgressSchema.methods.isTrialExpired = function () {
   return new Date() > this.trialExpiresAt;
 };
 
-// Method to check if milestone is unlocked
+// Method to check if milestone is unlocked (for 3 free projects model, milestone 0 is always unlocked)
 userProgressSchema.methods.isMilestoneUnlocked = function (milestoneIndex) {
-  if (!this.isFreeTrial) return true; // Paid users have all milestones unlocked
-  return milestoneIndex < this.unlockedMilestones;
+  // Purchased users have all milestones unlocked
+  if (!this.isFreeTrial) return true;
+  // Free trial users only have milestone 0 unlocked
+  return milestoneIndex === 0;
+};
+
+// Method to get messages used in current milestone
+userProgressSchema.methods.getMessagesUsedInMilestone = function (milestoneIndex) {
+  const milestoneMsg = this.messageCounts.find(
+    (m) => m.milestoneIndex === milestoneIndex
+  );
+  return milestoneMsg ? milestoneMsg.count : 0;
+};
+
+// Method to increment message count for a milestone
+userProgressSchema.methods.incrementMessageCount = function (milestoneIndex) {
+  const existingMsg = this.messageCounts.find(
+    (m) => m.milestoneIndex === milestoneIndex
+  );
+
+  if (existingMsg) {
+    existingMsg.count += 1;
+  } else {
+    this.messageCounts.push({
+      milestoneIndex,
+      count: 1,
+    });
+  }
+
+  this.lastActive = new Date();
+  return this.save();
+};
+
+// Method to check if user can send more messages without consuming credits
+userProgressSchema.methods.canSendMessageWithoutCredits = function (milestoneIndex) {
+  const messagesUsed = this.getMessagesUsedInMilestone(milestoneIndex);
+  const limit = this.isFreeTrial
+    ? this.messageLimits.freeTrialMessagesPerMilestone
+    : this.messageLimits.purchasedMessagesPerMilestone;
+  
+  return messagesUsed < limit;
 };
 
 // Method to mark step as complete

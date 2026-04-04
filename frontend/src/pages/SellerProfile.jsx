@@ -126,52 +126,60 @@ export default function SellerProfile() {
               {projects.map((project) => (
                 <div
                   key={project._id}
-                  className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden hover:shadow-xl transition-all group cursor-pointer"
+                  className="glass-card rounded-[24px] overflow-hidden card-hover group cursor-pointer flex flex-col h-full relative"
                   onClick={() => navigate(`/project/${project._id}`)}
                 >
-                  <div className="h-48 overflow-hidden relative bg-linear-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+                  <div className="h-44 overflow-hidden relative bg-slate-100 dark:bg-slate-800/50 rounded-t-[23px]">
                     {project.thumbnail?.secure_url ? (
                       <img
                         src={project.thumbnail.secure_url}
                         alt={project.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       />
                     ) : (
-                      <Sparkles className="text-indigo-500/50" size={64} />
+                      <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-indigo-500/10 to-cyan-500/10">
+                        <Sparkles className="text-indigo-500/30 w-16 h-16" />
+                      </div>
                     )}
-                    <div className="absolute top-4 right-4 bg-white/90 dark:bg-black/90 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm flex items-center gap-1">
-                      <span>₹{project.price}</span>
+                    <div className="absolute top-4 right-4 bg-white/95 dark:bg-black/90 px-3 py-1.5 rounded-full text-sm font-black text-slate-900 dark:text-white backdrop-blur-md shadow-lg border border-white/20">
+                      ₹{project.price}
                     </div>
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-black/60 to-transparent opacity-60" />
                   </div>
-                  <div className="p-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                        project.badge === 'diamond' ? 'bg-cyan-500/10 text-cyan-500' :
-                        project.badge === 'gold' ? 'bg-yellow-500/10 text-yellow-500' :
-                        'bg-slate-500/10 text-slate-500'
-                      }`}>
-                        {project.badge || 'silver'}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 text-xs font-bold uppercase tracking-wider">
+                  <div className="p-5 flex-1 flex flex-col font-body">
+                    <div className="flex items-center gap-2 mb-3">
+                      {project.badge && (
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${
+                          project.badge === 'diamond' ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20' :
+                          project.badge === 'gold' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
+                          'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20'
+                        }`}>
+                          {project.badge} UI
+                        </span>
+                      )}
+                      <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-black uppercase tracking-widest">
                         {project.category || 'App'}
                       </span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{project.title}</h3>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
+                    <h3 className="text-lg font-bold font-headline mb-2 text-slate-900 dark:text-white line-clamp-1 group-hover:text-indigo-500 transition-colors">
+                      {project.title}
+                    </h3>
+                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2 leading-relaxed flex-1">
                       {project.description}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {(project.techStack || []).slice(0, 3).map((tech) => (
+                    <div className="flex flex-wrap gap-1.5 mb-5">
+                      {(project.techStack || []).slice(0, 2).map((tech) => (
                         <span
                           key={tech}
-                          className="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-xs rounded-md font-medium"
+                          className="px-2 py-1 bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 text-[10px] rounded-full font-medium"
                         >
                           {tech}
                         </span>
                       ))}
-                      {(project.techStack?.length || 0) > 3 && (
-                        <span className="px-2 py-1 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-xs rounded-md font-medium">
-                          +{(project.techStack.length || 4) - 3}
+                      {(project.techStack?.length || 0) > 2 && (
+                        <span className="px-2 py-1 bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 text-[10px] rounded-full font-medium">
+                          +{(project.techStack.length || 3) - 2}
                         </span>
                       )}
                     </div>
@@ -180,10 +188,10 @@ export default function SellerProfile() {
                         e.stopPropagation();
                         setCheckoutModalOpen(true, project);
                       }}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                      className="w-full bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm shadow-indigo-500/20 btn-press mt-auto"
                     >
-                      <ShoppingCart size={18} />
-                      Buy Now
+                      <ShoppingCart size={16} />
+                      <span className="text-sm">Buy Project</span>
                     </button>
                   </div>
                 </div>

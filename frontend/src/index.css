@@ -4,7 +4,185 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ===================================================================
-   BRAINBAZAAR AI LAB — "The Flow State" 
+   BRAINBAZAAR LANDING PAGE — Premium AI Marketplace Design
+   Space Grotesk + Manrope typography with purple/cyan theme
+   =================================================================== */
+
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap');
+
+/* Font Families */
+.font-headline {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.font-body {
+  font-family: 'Manrope', sans-serif;
+}
+
+/* Glass Card Effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(93, 33, 223, 0.1);
+}
+
+.dark .glass-card {
+  background: rgba(26, 26, 26, 0.7);
+  border: 1px solid rgba(93, 33, 223, 0.15);
+}
+
+/* Nebula Gradient Background */
+.nebula-gradient {
+  background: linear-gradient(135deg, rgba(93, 33, 223, 0.05) 0%, rgba(0, 227, 253, 0.05) 100%);
+}
+
+/* Text Glow Effect */
+.text-glow {
+  text-shadow: 0 0 15px rgba(93, 33, 223, 0.2);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* ===================================================================
+   HERO SECTION ANIMATIONS
+   =================================================================== */
+
+/* Floating animation for code symbols */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-30px) rotate(5deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-15px) rotate(-3deg);
+    opacity: 0.4;
+  }
+  75% {
+    transform: translateY(-40px) rotate(7deg);
+    opacity: 0.5;
+  }
+}
+
+.animate-float {
+  animation: float 20s ease-in-out infinite;
+}
+
+/* Grid movement animation */
+@keyframes gridMove {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(60px, 60px);
+  }
+}
+
+/* Pulse glow for orbs */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* Shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8f9fc;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #5d21df 0%, #00e3fd 100%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6b3eea 0%, #00daf3 100%);
+}
+
+/* ===================================================================
+   BRAINBAZAAR MICRO-INTERACTIONS & UTILITIES
+   Shared premium hover states and animations
+   =================================================================== */
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Premium Card Hover */
+.card-hover {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(93, 33, 223, 0.2);
+}
+.dark .card-hover:hover {
+  box-shadow: 0 12px 24px -10px rgba(93, 33, 223, 0.4);
+}
+
+/* Button Press Effect */
+.btn-press {
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+.btn-press:active {
+  transform: scale(0.97);
+  filter: brightness(0.9);
+}
+
+/* Premium Input Focus Rings */
+.input-focus {
+  transition: all 0.2s ease;
+}
+.input-focus:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(93, 33, 223, 0.15);
+  border-color: #5d21df;
+}
+.dark .input-focus:focus-within {
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
+  border-color: #818CF8;
+}
+
+/* ===================================================================
+   BRAINBAZAAR AI LAB — "The Flow State"
    Notion + Duolingo + Cursor visual language
    =================================================================== */
 

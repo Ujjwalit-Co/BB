@@ -1,304 +1,50 @@
 import { create } from 'zustand';
 import { AIResponse } from '../services/aiModels';
 import { projectsApi, milestonesApi } from '../api/fastapi';
-import { purchaseApi, creditsApi, progressApi } from '../api/express';
+import { purchaseApi, creditsApi, progressApi, projectsExpressApi } from '../api/express';
 
-const DEMO_FILES = [
-  {
-    id: 'f1',
-    name: 'App.jsx',
-    language: 'javascript',
-    isDirty: false,
-    status: 'clean', // 'clean' | 'unsaved' | 'warning' | 'error'
-    content: `import React, { useState, useEffect } from 'react';
-import { fetchWeather } from './api';
-
-function App() {
-  const [city, setCity] = useState('London');
-  const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const handleSearch = async () => {
-    setLoading(true);
-    const data = await fetchWeather(city);
-    setWeather(data);
-    setLoading(false);
-  };
-
-  return (
-    <div className="app">
-      <h1>Weather App</h1>
-      <div className="search">
-        <input
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          placeholder="Enter city..."
-        />
-        <button onClick={handleSearch}>Search</button>
-      </div>
-      {loading && <p>Loading...</p>}
-      {weather && (
-        <div className="weather-card">
-          <h2>{weather.city}</h2>
-          <p>{weather.temp}&deg;C</p>
-          <p>{weather.description}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;`,
-  },
-  {
-    id: 'f2',
-    name: 'api.js',
-    language: 'javascript',
-    isDirty: false,
-    status: 'warning',
-    content: `const API_KEY = 'your_api_key_here';
-const BASE_URL = 'https://api.weather.example.com/v1';
-
-export async function fetchWeather(city) {
-  // TODO: Add error handling
-  const res = await fetch(
-    \`\${BASE_URL}/weather?q=\${city}&appid=\${API_KEY}\`
-  );
-  const data = await res.json();
-  return {
-    city: data.name,
-    temp: Math.round(data.main.temp - 273.15),
-    description: data.weather[0].description,
-  };
-}`,
-  },
-  {
-    id: 'f3',
-    name: 'styles.css',
-    language: 'css',
-    isDirty: false,
-    status: 'clean',
-    content: `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Inter', sans-serif;
-  background: #f7f7f5;
-  color: #1a1a1a;
-}
-
-.app {
-  max-width: 600px;
-  margin: 40px auto;
-  padding: 24px;
-  text-align: center;
-}
-
-.search {
-  display: flex;
-  gap: 8px;
-  margin: 24px 0;
-}
-
-.search input {
-  flex: 1;
-  padding: 10px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.search button {
-  padding: 10px 20px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.weather-card {
-  margin-top: 24px;
-  padding: 24px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}`,
-  },
-  {
-    id: 'f4',
-    name: 'index.html',
-    language: 'html',
-    isDirty: false,
-    status: 'clean',
-    content: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weather App</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="app">
-    <h1>Weather App</h1>
-    <div class="search">
-      <input type="text" placeholder="Enter city..." />
-      <button>Search</button>
-    </div>
-    <div class="weather-card">
-      <h2>London</h2>
-      <p>15&deg;C</p>
-      <p>Partly cloudy</p>
-    </div>
-  </div>
-  <script src="api.js"></script>
-</body>
-</html>`,
-  },
-  {
-    id: 'f5',
-    name: 'data_analysis.py',
-    language: 'python',
-    isDirty: false,
-    status: 'clean',
-    content: `# Weather Data Analysis in Python
-# Run this file in the Python console!
-
-def analyze_temperatures(temp_list):
-    """Analyze a list of temperatures."""
-    if not temp_list:
-        return "No data provided"
-    
-    avg_temp = sum(temp_list) / len(temp_list)
-    max_temp = max(temp_list)
-    min_temp = min(temp_list)
-    
-    return {
-        'average': round(avg_temp, 2),
-        'max': max_temp,
-        'min': min_temp,
-        'count': len(temp_list)
+/**
+ * Get auth token from Zustand store (single source of truth)
+ */
+function getAuthToken() {
+  try {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const parsed = JSON.parse(authStorage);
+      const token = parsed.state?.token || parsed.token;
+      
+      // Verify token is a non-empty string
+      if (token && typeof token === 'string' && token.trim().length > 0) {
+        return token;
+      }
     }
+  } catch (e) {
+    console.error('Error getting auth token:', e);
+  }
+  return null;
+}
 
-# Example usage:
-temperatures = [15, 18, 22, 19, 16, 21, 23]
-result = analyze_temperatures(temperatures)
-print(f"Temperature Analysis: {result}")`,
-  },
-  {
-    id: 'f6',
-    name: 'utils.py',
-    language: 'python',
-    isDirty: false,
-    status: 'clean',
-    content: `# Utility functions for weather processing
+/**
+ * Get user from Zustand store
+ */
+function getAuthUser() {
+  try {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const parsed = JSON.parse(authStorage);
+      return parsed.state?.user || parsed.user || null;
+    }
+  } catch (e) {
+    console.error('Error getting auth user:', e);
+  }
+  return null;
+}
 
-def celsius_to_fahrenheit(celsius):
-    """Convert Celsius to Fahrenheit."""
-    return (celsius * 9/5) + 32
 
-def fahrenheit_to_celsius(fahrenheit):
-    """Convert Fahrenheit to Celsius."""
-    return (fahrenheit - 32) * 5/9
 
-def classify_weather(temp, condition):
-    """Classify weather based on temperature and condition."""
-    if temp < 0:
-        return "Freezing"
-    elif temp < 10:
-        return "Cold"
-    elif temp < 20:
-        return "Cool"
-    elif temp < 30:
-        return "Warm"
-    else:
-        return "Hot"
 
-# Quick test
-if __name__ == "__main__":
-    print(f"25°C = {celsius_to_fahrenheit(25)}°F")
-    print(f"77°F = {fahrenheit_to_celsius(77)}°C")
-    print(f"Weather classification: {classify_weather(25, 'sunny')}")`,
-  },
-];
 
-const DEMO_MILESTONES = [
-  {
-    id: 'm1',
-    title: 'Project Setup',
-    status: 'active', // 'active' | 'completed' | 'locked'
-    isPayed: false,
-    steps: [
-      { id: 's1', title: 'Create file structure', status: 'completed' },
-      { id: 's2', title: 'Build UI layout', status: 'completed' },
-      { id: 's3', title: 'Add base styling', status: 'active' },
-      { id: 'sq1', title: 'Take Milestone Assessment', status: 'locked' },
-    ],
-  },
-  {
-    id: 'm2',
-    title: 'API Integration',
-    status: 'locked',
-    isPayed: true,
-    steps: [
-      { id: 's4', title: 'Create fetchWeather function', status: 'locked' },
-      { id: 's5', title: 'Add error handling', status: 'locked' },
-      { id: 's6', title: 'Display weather data', status: 'locked' },
-      { id: 'sq2', title: 'Take Milestone Assessment', status: 'locked' },
-    ],
-  },
-  {
-    id: 'm3',
-    title: 'Polish & Deploy',
-    status: 'locked',
-    isPayed: true,
-    steps: [
-      { id: 's7', title: 'Add loading states', status: 'locked' },
-      { id: 's8', title: 'Responsive design', status: 'locked' },
-      { id: 's9', title: 'Deploy to production', status: 'locked' },
-    ],
-  },
-];
 
-const DEMO_AI_MESSAGES = [
-  {
-    role: 'ai',
-    content: "Welcome to your Weather App project! I'll guide you through building this step by step. Let's start with Milestone 1 -- Project Setup.",
-  },
-  {
-    role: 'user',
-    content: "I've set up the basic structure. Can you check my api.js file?",
-  },
-  {
-    role: 'ai',
-    content: "I noticed your fetchWeather function is missing error handling. If the API call fails, the app will crash. I've prepared a fix -- wrapping it in a try/catch block.",
-    diff: {
-      original: '  const res = await fetch(...);',
-      replacement: '  try {\n    const res = await fetch(...);\n  } catch (e) {\n    console.error(e);\n    return null;\n  }',
-    },
-  },
-];
-
-const DEMO_AI_SUGGESTION = {
-  fileId: 'f2',
-  lineStart: 5,
-  lineEnd: 9,
-  original: `  // TODO: Add error handling
-  const res = await fetch(
-    \`\${BASE_URL}/weather?q=\${city}&appid=\${API_KEY}\`
-  );
-  const data = await res.json();`,
-  replacement: `  try {
-    const res = await fetch(
-      \`\${BASE_URL}/weather?q=\${city}&appid=\${API_KEY}\`
-    );
-    if (!res.ok) throw new Error('City not found');
-    const data = await res.json();`,
-};
 
 let fileCounter = 10;
 
@@ -306,6 +52,7 @@ const useLabStore = create((set, get) => ({
   // Project Metadata
   projectId: null,
   projectName: '',
+  projectData: null,  // Full project metadata including milestones
 
   // File System
   files: [],
@@ -322,6 +69,12 @@ const useLabStore = create((set, get) => ({
   isLabLoading: false,
   loadingProgress: 0,
   loadingStatus: '',
+  messageInfo: {
+    used: 0,
+    limit: 10,
+    remaining: 10,
+    canSendWithoutCredits: true,
+  },
 
   // UI State
   leftSidebarOpen: true,
@@ -337,12 +90,15 @@ const useLabStore = create((set, get) => ({
   insufficientCreditsError: false, // shown when credits < 2
   creditModalOpen: false,
   confirmationModalOpen: false,
+  milestoneCompletedModalOpen: false,
   pendingUnlock: null, // { projectId, milestoneId }
   requiredCredits: 0,
   showOnboarding: false,
   userEnvironment: null,
   isPurchased: false, // Whether user has purchased this project
   currentQuiz: null, // Current quiz data
+  isSandbox: false, // Sandbox mode flag
+  questionsRemaining: null, // Track remaining free questions
 
   // Console
   consoleContext: {}, // Persistent context for variables across commands
@@ -355,6 +111,58 @@ const useLabStore = create((set, get) => ({
   aiInput: '',
 
   // --- ACTIONS ---
+
+  startSandbox: () => {
+    const initialFiles = [{
+      id: 'f1',
+      name: 'index.html',
+      language: 'html',
+      isDirty: false,
+      status: 'clean',
+      content: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Sandbox</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <div id="app">\n    <h1>Hello Sandbox</h1>\n    <p>Start coding with AI assistance.</p>\n  </div>\n  <script src="script.js"></script>\n</body>\n</html>`,
+    }, {
+      id: 'f2',
+      name: 'style.css',
+      language: 'css',
+      isDirty: false,
+      status: 'clean',
+      content: `body {\n  font-family: sans-serif;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  height: 100vh;\n  margin: 0;\n  background: #f0f0f0;\n}\n\n#app {\n  background: white;\n  padding: 2rem;\n  border-radius: 8px;\n  box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n  text-align: center;\n}`,
+    }, {
+      id: 'f3',
+      name: 'script.js',
+      language: 'javascript',
+      isDirty: false,
+      status: 'clean',
+      content: `console.log("Sandbox initialized.");`,
+    }];
+
+    set({
+      projectId: 'sandbox',
+      projectName: 'Sandbox Workspace',
+      projectData: null,
+      files: initialFiles,
+      milestones: [],
+      currentMilestoneId: null,
+      openTabs: ['f1', 'f2', 'f3'],
+      activeFileId: 'f1',
+      isSandbox: true,
+      consoleMode: 'javascript',
+      pythonLogs: [],
+      jsLogs: [],
+      aiMessages: [{
+        role: 'ai',
+        content: `Welcome to the Sandbox! Here you can experiment freely. Every question asked here will consume **2 credits** as there are no free milestone limits.`
+      }],
+      aiSuggestion: null,
+      leftSidebarOpen: true,
+      rightSidebarOpen: true,
+      bottomPanelOpen: true,
+      bottomPanelTab: 'preview',
+      livePreviewHtml: '',
+      isLabLoading: false,
+    });
+    get().saveProject(); // Trigger initial compile
+  },
 
   setAiInput: (input) => set({ aiInput: input }),
 
@@ -370,88 +178,7 @@ const useLabStore = create((set, get) => ({
     set({ userEnvironment: null, showOnboarding: true });
   },
 
-  initDemoProject: async () => {
-    set({ isLabLoading: true, loadingStatus: 'Preparing your codebase...', loadingProgress: 5 });
 
-    // Simulate codebase prep
-    await new Promise(r => setTimeout(r, 800));
-    set({ loadingStatus: 'AI is analyzing project complexity...', loadingProgress: 25 });
-
-    // Simulate AI analysis
-    await new Promise(r => setTimeout(r, 800));
-    set({ loadingStatus: 'Synchronizing environment...', loadingProgress: 50 });
-
-    // Preload Pyodide (Python runtime) and track its progress
-    set({ loadingStatus: 'Initializing Python runtime...', loadingProgress: 60 });
-    try {
-      const { loadPyodide: loadPyo } = await import('pyodide');
-      const pyodideInstance = await loadPyo({
-        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
-      });
-      set({ pyodide: pyodideInstance, loadingProgress: 85 });
-    } catch (error) {
-      console.error('Failed to preload Pyodide:', error);
-    }
-
-    set({ loadingStatus: 'Finalizing workspace...', loadingProgress: 95 });
-    await new Promise(r => setTimeout(r, 600));
-
-    const savedEnv = localStorage.getItem('userEnvironment');
-    const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
-
-    // Sync from auth store
-    let unlockedFromAuth = [];
-    let creditsFromAuth = 0;
-    try {
-      const authData = JSON.parse(localStorage.getItem('auth-storage'));
-      unlockedFromAuth = authData?.state?.user?.unlockedMilestones || [];
-      creditsFromAuth = authData?.state?.user?.credits || 0;
-    } catch (e) {
-      console.error('Failed to sync from auth store', e);
-    }
-
-    const initialMilestones = DEMO_MILESTONES.map(m => {
-      const isUnlocked = unlockedFromAuth.some(u => u.projectId === 'demo' && u.milestoneId === m.id);
-      if (isUnlocked) {
-        return { ...m, status: 'active' };
-      }
-      if (m.isPayed && !isUnlocked) {
-        return { ...m, status: 'locked' };
-      }
-      return m;
-    });
-
-    set({
-      projectId: 'demo1',
-      projectName: 'E-commerce Website',
-      files: DEMO_FILES,
-      milestones: initialMilestones,
-      currentMilestoneId: 'm1',
-      openTabs: ['f1', 'f2'],
-      activeFileId: 'f1',
-      credits: creditsFromAuth,
-      consoleMode: 'javascript',
-      pythonLogs: [],
-      jsLogs: [],
-      aiMessages: DEMO_AI_MESSAGES,
-      aiSuggestion: DEMO_AI_SUGGESTION,
-      leftSidebarOpen: true,
-      rightSidebarOpen: true,
-      bottomPanelOpen: true,
-      bottomPanelTab: 'console',
-      quizOpen: false,
-      profileMenuOpen: false,
-      saveFlash: false,
-      newFileDialogOpen: false,
-      fileToDelete: null,
-      livePreviewHtml: '',
-      insufficientCreditsError: false,
-      isLabLoading: false,
-      loadingProgress: 100,
-      userEnvironment,
-      showOnboarding: !userEnvironment,
-    });
-  },
 
   /**
    * Load a real project from FastAPI backend
@@ -459,34 +186,52 @@ const useLabStore = create((set, get) => ({
    * @param {boolean} isPurchased - Whether the user has purchased this project
    */
   loadRealProject: async (projectId, isPurchased = false) => {
+    if (!projectId) {
+      console.error('[loadRealProject] No projectId provided');
+      set({
+        isLabLoading: false,
+        aiMessages: [
+          {
+            role: 'ai',
+            content: 'Error: No project ID provided. Please navigate to a project first.',
+          },
+        ],
+      });
+      return;
+    }
+
     set({ isLabLoading: true, loadingStatus: 'Loading project...', loadingProgress: 10 });
 
     try {
       // Fetch project data from Express API (MongoDB)
-      const { default: axios } = await import('axios');
+      // Use plain fetch to avoid any interceptor issues with auth tokens
       const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
-      let token = localStorage.getItem('token');
-      if (!token) {
-        try {
-          const authData = JSON.parse(localStorage.getItem('auth-storage'));
-          token = authData?.state?.token;
-        } catch (e) {}
+      const url = `${EXPRESS_API_URL}/projects/${projectId}`;
+
+      console.log(`[loadRealProject] Fetching from: ${url}`);
+
+      const fetchResponse = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          // Only add auth header if we have a valid token
+          ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {}),
+        },
+        credentials: 'include', // Include cookies if any
+      });
+
+      if (!fetchResponse.ok) {
+        throw new Error(`API Error: ${fetchResponse.status} ${fetchResponse.statusText}`);
       }
 
-      const { data: response } = await axios.get(`${EXPRESS_API_URL}/projects/${projectId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await fetchResponse.json();
       const projectData = response.project || response;
 
       set({ loadingProgress: 30, loadingStatus: 'Preparing code files...' });
 
       // Transform project milestones to Lab format
-      const labMilestones = (projectData.milestones || []).map((m, idx) => ({
-        id: `m${idx + 1}`,
-        title: m.name,
-        description: m.description,
-        status: idx === 0 ? 'active' : 'locked',
-        steps: m.steps?.map((s, sIdx) => ({
+      const labMilestones = (projectData.milestones || []).map((m, idx) => {
+        const steps = m.steps?.map((s, sIdx) => ({
           id: `m${idx + 1}-s${s.stepNumber || sIdx + 1}`,
           title: s.title,
           description: s.description,
@@ -494,8 +239,27 @@ const useLabStore = create((set, get) => ({
           codeBlocks: s.codeBlocks || [],
           verificationSteps: s.verificationSteps,
           hints: s.hints,
-        })) || [],
-      }));
+        })) || [];
+
+        // Inject Assessment step if not present
+        if (!steps.some(s => s.title.toLowerCase().includes('assessment'))) {
+          steps.push({
+            id: `m${idx + 1}-assessment`,
+            title: 'Milestone Assessment',
+            description: 'Complete the assessment to verify your knowledge and unlock the next milestone.',
+            status: 'locked',
+          });
+        }
+
+        return {
+          id: `m${idx + 1}`,
+          title: m.title || m.name || `Milestone ${idx + 1}`,
+          description: m.description,
+          status: idx === 0 ? 'active' : 'locked',
+          steps,
+          quiz: m.quiz, // Store quiz data inside the milestone for easier access
+        };
+      });
 
       set({ loadingProgress: 60, loadingStatus: 'Initializing environment...' });
 
@@ -516,31 +280,15 @@ const useLabStore = create((set, get) => ({
       const extLangMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python' };
       let initialFiles = [];
 
-      if (projectData.codeFiles && projectData.codeFiles.length > 0) {
-        initialFiles = projectData.codeFiles.map((cf, i) => {
-          const ext = (cf.filename || cf.path || '').split('.').pop()?.toLowerCase();
-          return {
-            id: `f${i + 1}`,
-            name: cf.filename || cf.path?.split('/').pop() || `file${i + 1}`,
-            language: extLangMap[ext] || cf.language || 'text',
-            isDirty: false,
-            status: 'clean',
-            content: cf.content || '',
-          };
-        });
-      }
-
-      // If no code files, create a welcome file
-      if (initialFiles.length === 0) {
-        initialFiles = [{
-          id: 'f1',
-          name: 'README.md',
-          language: 'markdown',
-          isDirty: false,
-          status: 'clean',
-          content: `# ${projectData.title}\n\n${projectData.description || ''}\n\nThis project has no embedded code files. Use the Download ZIP button on your dashboard to get the full source code.`,
-        }];
-      }
+      // For Project-Based Learning, we start from scratch with only a README
+      initialFiles = [{
+        id: 'f1',
+        name: 'README.md',
+        language: 'markdown',
+        isDirty: false,
+        status: 'clean',
+        content: `# ${projectData.title}\n\n${projectData.description || ''}\n\n${projectData.readme || ''}\n\n---\n**Goal:** Follow the milestones and instructions to build this project.`,
+      }];
 
       const savedEnv = localStorage.getItem('userEnvironment');
       const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
@@ -552,15 +300,37 @@ const useLabStore = create((set, get) => ({
         creditsFromAuth = authData?.state?.user?.credits || 0;
       } catch (e) {}
 
+      // Load user progress to get message limits
+      let messageInfo = { used: 0, limit: 10, remaining: 10, canSendWithoutCredits: true };
+      try {
+        const { default: axios } = await import('axios');
+        const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
+        const token = getAuthToken();
+        
+        if (token) {
+          const { data: progressData } = await axios.get(`${EXPRESS_API_URL}/users/${authData?.state?.user?._id}/progress/${projectData._id || projectData.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (progressData.success && progressData.messageInfo) {
+            messageInfo = progressData.messageInfo;
+          }
+        }
+      } catch (err) {
+        console.log('No progress found, using default message limits');
+      }
+
       set({
         projectId: projectData._id || projectData.id,
         projectName: projectData.title,
+        projectData: projectData, // Store full context to avoid 404s in AI chat
         files: initialFiles,
         milestones: labMilestones,
         currentMilestoneId: labMilestones[0]?.id || null,
         openTabs: [initialFiles[0].id],
         activeFileId: initialFiles[0].id,
         credits: creditsFromAuth,
+        messageInfo,
         consoleMode: 'javascript',
         pythonLogs: [],
         jsLogs: [],
@@ -583,6 +353,7 @@ const useLabStore = create((set, get) => ({
         livePreviewHtml: '',
         insufficientCreditsError: false,
         isPurchased,
+        isSandbox: false,
         isLabLoading: false,
         loadingProgress: 100,
         userEnvironment,
@@ -590,17 +361,28 @@ const useLabStore = create((set, get) => ({
       });
     } catch (error) {
       console.error('Failed to load project:', error);
+      
+      let errorMessage = error.message;
+      if (error.response?.status === 404) {
+        errorMessage = `Project not found (ID: ${projectId}). It may have been deleted or the ID is invalid.`;
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error loading project. Please try again later.';
+      } else if (!error.response) {
+        errorMessage = 'Network error: Could not connect to backend. Is the server running?';
+      }
+
+      console.error(`[loadRealProject Error] ${errorMessage}`);
+
       set({
         isLabLoading: false,
         loadingProgress: 0,
         aiMessages: [
           {
             role: 'ai',
-            content: `Error loading project: ${error.message}. Please try again from your dashboard.`,
+            content: `❌ Error loading project: ${errorMessage}`,
           },
         ],
       });
-      // Don't fall back to demo — just show the error
     }
   },
 
@@ -918,16 +700,11 @@ const useLabStore = create((set, get) => ({
   setAiThinking: (status) => set({ isAiThinking: status }),
   deductCredit: async (amount = 2) => {
     try {
-      // Get token from persist store or individual item
-      let token = localStorage.getItem('token');
-      if (!token) {
-        const authData = JSON.parse(localStorage.getItem('auth-storage'));
-        token = authData?.state?.token;
-      }
-      
+      const token = getAuthToken();
       if (!token) return;
-      
-      const { data } = await import('axios').then(m => m.default.post(`${import.meta.env.VITE_BACKEND_URL}/user/deduct-credits`, 
+
+      const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
+      const { data } = await import('axios').then(m => m.default.post(`${EXPRESS_API_URL}/credits/consume`,
         { amount },
         { headers: { Authorization: `Bearer ${token}` } }
       ));
@@ -956,8 +733,8 @@ const useLabStore = create((set, get) => ({
       }
     } catch (e) {}
 
-    if (currentCredits < 50) {
-      set({ creditModalOpen: true, requiredCredits: 50 });
+    if (currentCredits < 70) {
+      set({ creditModalOpen: true, requiredCredits: 70 });
       return false;
     }
 
@@ -977,23 +754,13 @@ const useLabStore = create((set, get) => ({
     set({ confirmationModalOpen: false });
 
     try {
-      // Prioritize token from auth-storage (main source of truth)
-      let token = null;
-      try {
-        const authData = JSON.parse(localStorage.getItem('auth-storage'));
-        token = authData?.state?.token;
-      } catch (e) {}
-
-      if (!token) {
-        token = localStorage.getItem('token');
-      }
-      
+      const token = getAuthToken();
       if (!token) {
         alert("Authentication token missing. Please log in again.");
         return false;
       }
 
-      const { data } = await import('axios').then(m => m.default.post(`${import.meta.env.VITE_BACKEND_URL}/user/unlock-milestone`, 
+      const { data } = await import('axios').then(m => m.default.post(`${import.meta.env.VITE_BACKEND_URL}/user/unlock-milestone`,
         { projectId, milestoneId },
         { headers: { Authorization: `Bearer ${token}` } }
       ));
@@ -1038,13 +805,21 @@ const useLabStore = create((set, get) => ({
   setInsufficientCreditsError: (show) => set({ insufficientCreditsError: show }),
 
   /**
-   * Send a message to AI and get response from FastAPI backend
+   * Send a message to AI and get response from FastAPI backend via Express proxy
    */
   addAiUserMessage: async (content) => {
-    const { credits, deductCredit, setAiThinking, setInsufficientCreditsError, projectId, currentMilestoneId, milestones, files, updateFileContent, createFile } = get();
+    const { setAiThinking, setInsufficientCreditsError, projectId, currentMilestoneId, files, isSandbox, messageInfo } = get();
 
-    // Check if user has enough credits
-    if (credits < 2) {
+    // Basic credit check before we even try (Express will enforce strictly)
+    const { credits } = get();
+    if (credits < 2 && isSandbox) {
+      setInsufficientCreditsError(true);
+      setTimeout(() => setInsufficientCreditsError(false), 3000);
+      return;
+    }
+
+    // Check message limits
+    if (!messageInfo.canSendWithoutCredits && credits < 2 && !isSandbox) {
       setInsufficientCreditsError(true);
       setTimeout(() => setInsufficientCreditsError(false), 3000);
       return;
@@ -1054,20 +829,43 @@ const useLabStore = create((set, get) => ({
     set((s) => ({
       aiMessages: [...s.aiMessages, { role: 'user', content }]
     }));
-    deductCredit(2);
     setAiThinking(true);
 
     try {
-      // Extract milestone number from currentMilestoneId (e.g., 'm1' -> 1)
-      const milestoneNumber = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) : 1;
+      // Extract milestone index from currentMilestoneId (e.g., 'm1' -> 0, 'm2' -> 1)
+      const milestoneIndex = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) - 1 : 0;
 
-      // Call FastAPI backend
-      const response = await milestonesApi.askMilestoneQuestion(
-        projectId || 'demo1', // Use demo1 if no project loaded
-        milestoneNumber,
-        content,
-        files
-      );
+      // Basic mapping to strip out large unnecessary UI state elements from files
+      const cleanFiles = files.map(f => ({
+        name: f.name,
+        content: f.content,
+        language: f.language
+      }));
+
+      // Call Express Proxy backend with milestoneIndex (0-based)
+      const response = await progressApi.askQuestion(projectId || 'sandbox', {
+        milestoneIndex,
+        question: content,
+        files: cleanFiles,
+        projectContext: get().projectData,
+        isSandbox
+      });
+
+      // Update credits and message info from server response
+      if (response.credits !== undefined) {
+         set({ credits: response.credits });
+      }
+      
+      if (response.messagesRemaining !== undefined) {
+        const currentMilestoneIdx = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) - 1 : 0;
+        set((s) => ({
+          messageInfo: {
+            ...s.messageInfo,
+            remaining: response.messagesRemaining,
+            canSendWithoutCredits: response.messagesRemaining > 0,
+          }
+        }));
+      }
 
       // Process structured response
       const { answer, suggestedFiles = [], suggestedCommands = [] } = response;
@@ -1076,11 +874,12 @@ const useLabStore = create((set, get) => ({
       let feedbackMessage = '';
       if (suggestedFiles.length > 0) {
         suggestedFiles.forEach(file => {
+          const { createFile, updateFileContent } = get();
           if (file.action === 'create') {
             createFile(file.name, file.suggestedCode);
             feedbackMessage += `✓ Created ${file.name}. `;
           } else if (file.action === 'edit') {
-            const existingFile = files.find(f => f.name === file.name);
+            const existingFile = get().files.find(f => f.name === file.name);
             if (existingFile) {
               updateFileContent(existingFile.id, file.suggestedCode);
               feedbackMessage += `✓ Updated ${file.name}. `;
@@ -1115,10 +914,16 @@ const useLabStore = create((set, get) => ({
       }));
     } catch (error) {
       console.error('AI API error:', error);
+
+      if (error.response?.status === 403) {
+         setInsufficientCreditsError(true);
+         setTimeout(() => setInsufficientCreditsError(false), 3000);
+      }
+
       set((s) => ({
         aiMessages: [...s.aiMessages, {
           role: 'ai',
-          content: `I encountered an error while processing your question: ${error.message}. Please try again.`,
+          content: `I encountered an error while processing your question: ${error.response?.data?.message || error.message}. Please try again.`,
         }],
         isAiThinking: false,
       }));
@@ -1129,9 +934,11 @@ const useLabStore = create((set, get) => ({
    * Ask AI for step-specific guidance
    */
   askStepQuestion: async (stepId, question) => {
-    const { credits, deductCredit, setAiThinking, projectId, currentMilestoneId, milestones } = get();
+    const { setAiThinking, setInsufficientCreditsError, projectId, currentMilestoneId, milestones, isSandbox, messageInfo } = get();
 
-    if (credits < 2) {
+    // Check message limits
+    const { credits } = get();
+    if (!messageInfo.canSendWithoutCredits && credits < 2 && !isSandbox) {
       setInsufficientCreditsError(true);
       setTimeout(() => setInsufficientCreditsError(false), 3000);
       return;
@@ -1140,7 +947,6 @@ const useLabStore = create((set, get) => ({
     set((s) => ({
       aiMessages: [...s.aiMessages, { role: 'user', content: question }]
     }));
-    deductCredit(2);
     setAiThinking(true);
 
     try {
@@ -1152,15 +958,22 @@ const useLabStore = create((set, get) => ({
         throw new Error('Step not found');
       }
 
-      const milestoneNumber = parseInt(currentMilestoneId.replace('m', ''));
-      const stepNumber = step.title.includes('Step') ? parseInt(step.title.match(/Step (\d+)/)?.[1]) || 1 : 1;
+      const milestoneIndex = parseInt(currentMilestoneId.replace('m', '')) - 1;
 
-      const response = await milestonesApi.askStepQuestion(
-        projectId || 'demo1',
-        milestoneNumber,
-        stepNumber,
-        question
-      );
+      const response = await progressApi.askQuestion(projectId || 'sandbox', {
+        milestoneIndex,
+        question,
+        isSandbox
+      });
+
+      // Update credits from server response
+      if (response.credits !== undefined) {
+         set({ credits: response.credits });
+      }
+      
+      if (response.questionsRemaining !== undefined) {
+         set({ questionsRemaining: response.questionsRemaining });
+      }
 
       set((s) => ({
         aiMessages: [...s.aiMessages, {
@@ -1171,10 +984,16 @@ const useLabStore = create((set, get) => ({
       }));
     } catch (error) {
       console.error('Step AI API error:', error);
+      
+      if (error.response?.status === 403) {
+         setInsufficientCreditsError(true);
+         setTimeout(() => setInsufficientCreditsError(false), 3000);
+      }
+
       set((s) => ({
         aiMessages: [...s.aiMessages, {
           role: 'ai',
-          content: `Error: ${error.message}`,
+          content: `Error: ${error.response?.data?.message || error.message}`,
         }],
         isAiThinking: false,
       }));
@@ -1228,56 +1047,71 @@ const useLabStore = create((set, get) => ({
   })),
 
   // Complete a milestone step (for triggering quiz)
-  completeStep: (stepId) => set((s) => {
-    const updatedMilestones = s.milestones.map(m => {
-      // First pass: update the completed step
-      const updatedSteps = m.steps.map(step =>
-        step.id === stepId ? { ...step, status: 'completed' } : step
-      );
+  completeStep: (stepId) => {
+    const { milestones, currentMilestoneId, showQuiz } = get();
+    const currentM = milestones.find(m => m.id === currentMilestoneId);
+    const step = currentM?.steps.find(st => st.id === stepId);
 
-      // Second pass: unlock assessment if all other steps are completed
-      const finalSteps = updatedSteps.map(step => {
-        if (step.title.toLowerCase().includes('assessment') && step.status === 'locked') {
-          const allOthersCompleted = updatedSteps
-            .filter(st => st.id !== step.id)
-            .every(st => st.status === 'completed');
-          if (allOthersCompleted) {
+    if (!step) return;
+
+    const isAssessment = step.title.toLowerCase().includes('assessment');
+
+    if (isAssessment) {
+      // Don't mark as completed yet, just trigger the quiz
+      showQuiz();
+      return;
+    }
+
+    set((s) => {
+      const updatedMilestones = s.milestones.map(m => {
+        const stepIndex = m.steps.findIndex(step => step.id === stepId);
+        if (stepIndex === -1) return m;
+
+        // Update the target step to completed
+        const updatedSteps = m.steps.map((step, idx) => {
+          if (idx === stepIndex) return { ...step, status: 'completed' };
+          
+          // Auto-unlock the NEXT step if it's currently locked (and not the assessment)
+          if (idx === stepIndex + 1 && step.status === 'locked' && !step.title.toLowerCase().includes('assessment')) {
             return { ...step, status: 'active' };
           }
-        }
-        return step;
+          return step;
+        });
+
+        // Special logic: unlock assessment if all other steps are completed
+        const finalSteps = updatedSteps.map(step => {
+          if (step.title.toLowerCase().includes('assessment') && step.status === 'locked') {
+            const allOthersCompleted = updatedSteps
+              .filter(st => st.id !== step.id)
+              .every(st => st.status === 'completed');
+            if (allOthersCompleted) {
+              return { ...step, status: 'active' };
+            }
+          }
+          return step;
+        });
+
+        return { ...m, steps: finalSteps };
       });
 
-      return { ...m, steps: finalSteps };
+      // Check if current milestone is now fully completed (all steps including assessment are done)
+      const newCurrentM = updatedMilestones.find(m => m.id === s.currentMilestoneId);
+      const allDone = newCurrentM?.steps.every(step => step.status === 'completed');
+
+      if (allDone) {
+        // Mark milestone as completed
+        const finalMilestones = updatedMilestones.map(m =>
+          m.id === s.currentMilestoneId ? { ...m, status: 'completed' } : m
+        );
+        return {
+          milestones: finalMilestones,
+          milestoneCompletedModalOpen: true, // Show the celebration modal
+        };
+      }
+
+      return { milestones: updatedMilestones };
     });
-
-    // Check if current milestone is now fully completed
-    const currentM = updatedMilestones.find(m => m.id === s.currentMilestoneId);
-
-    // Auto-trigger quiz if the step is an Assessment (new completion or retake)
-    const completedStep = currentM?.steps.find(st => st.id === stepId);
-    if (completedStep && completedStep.title.toLowerCase().includes('assessment')) {
-      return {
-        milestones: updatedMilestones,
-        quizOpen: true
-      };
-    }
-
-    const allDone = currentM?.steps.every(step => step.status === 'completed');
-
-    if (allDone) {
-      // Mark milestone as completed
-      const finalMilestones = updatedMilestones.map(m =>
-        m.id === s.currentMilestoneId ? { ...m, status: 'completed' } : m
-      );
-      return {
-        milestones: finalMilestones,
-        quizOpen: true, // Auto-trigger quiz when milestone completes
-      };
-    }
-
-    return { milestones: updatedMilestones };
-  }),
+  },
 
   triggerGuideForStep: (stepId) => {
     const { milestones, addAiUserMessage } = get();
@@ -1309,6 +1143,7 @@ const useLabStore = create((set, get) => ({
       milestones: updatedMilestones,
       currentMilestoneId: nextMilestone.id,
       quizOpen: false,
+      milestoneCompletedModalOpen: false,
       aiMessages: [...s.aiMessages, {
         role: 'ai',
         content: `Welcome to Milestone: "${nextMilestone.title}"! Let's get started with the first step.`
@@ -1317,50 +1152,117 @@ const useLabStore = create((set, get) => ({
   }),
 
   showQuiz: async () => {
-    const { projectId, currentMilestoneId, milestones, setQuizLoading } = get();
+    const { projectId, currentMilestoneId, milestones } = get();
     const milestoneNumber = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) : 1;
 
+    // Helper to shuffle array randomly
+    const shuffleArray = (array) => {
+      const newArr = [...array];
+      for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+      }
+      return newArr;
+    };
+
     try {
-      // Fetch quiz from FastAPI backend
-      const quizData = await milestonesApi.getMilestoneQuiz(
-        projectId || 'demo1',
-        milestoneNumber,
-        5 // Default 5 questions
-      );
+      let questions = [];
+      const milestoneData = milestones.find(m => m.id === currentMilestoneId) || milestones[milestoneNumber - 1];
+      
+      // Check if quiz exists in the DB-loaded milestone data
+      if (milestoneData?.quiz?.questions && milestoneData.quiz.questions.length > 0) {
+        // Detect if the quiz is broken (missing correct answer field)
+        const isBroken = milestoneData.quiz.questions.some(q => q.correctAnswer === undefined && q.correct_answer === undefined);
+        if (!isBroken) {
+          questions = milestoneData.quiz.questions;
+        } else {
+           console.log(`[showQuiz] Local quiz data is broken for milestone ${milestoneNumber}. Fetching fresh quiz...`);
+        }
+      } 
+      
+      // If we don't have questions (or they were broken), fetch from API
+      if (questions.length === 0 && projectId) {
+        // Route to Express dynamic generation backend
+        const quizData = await projectsExpressApi.getMilestoneQuiz(projectId, milestoneNumber);
+        // API now returns { questions: [...] } instead of { quiz: [...] }
+        questions = quizData.questions || quizData.quiz || quizData;
+      }
+
+      if (!questions || questions.length === 0) {
+        throw new Error('No questions found for this milestone.');
+      }
+
+      // Prepare the questions
+      const preparedQuestions = questions.map((q, idx) => {
+        // Determine correct answer index - more robust
+        let correctAnswerIndex = -1;
+        const correctVal = q.correctAnswer ?? q.correct_answer;
+
+        if (correctVal === undefined || (typeof correctVal === 'number' && isNaN(correctVal))) {
+           // Skip or throw - we shouldn't have broken data here
+           console.warn(`[showQuiz] Question ${idx+1} is missing a correct answer!`);
+           return null;
+        }
+
+        // Case 1: correctVal is a valid number index
+        if (typeof correctVal === 'number' && q.options[correctVal]) {
+          correctAnswerIndex = correctVal;
+        } 
+        // Case 2: correctVal is a string that matches an option text
+        else if (typeof correctVal === 'string') {
+          const optionIndex = q.options.indexOf(correctVal);
+          if (optionIndex !== -1) {
+            correctAnswerIndex = optionIndex;
+          } else {
+            // Case 3: Try parsing as number index
+            const possibleIdx = parseInt(correctVal);
+            if (!isNaN(possibleIdx) && q.options[possibleIdx]) {
+              correctAnswerIndex = possibleIdx;
+            }
+          }
+        }
+
+        // Final fallback: if we still don't have a valid index, skip this question
+        if (correctAnswerIndex === -1 || !q.options[correctAnswerIndex]) {
+          console.warn(`[showQuiz] Question ${idx+1} has invalid correctAnswer!`, correctVal);
+          return null;
+        }
+
+        // Shuffle the options but keep track of the correct answer INDEX
+        const correctAnswerText = q.options[correctAnswerIndex];
+        const shuffledOptions = shuffleArray([...(q.options || [])]);
+        
+        // Find the NEW index of the correct answer after shuffling
+        const shuffledCorrectIndex = shuffledOptions.indexOf(correctAnswerText);
+
+        return {
+          id: `q${idx + 1}`,
+          question: q.question,
+          options: shuffledOptions,
+          correctAnswer: shuffledCorrectIndex, // Store as NUMBER index
+          explanation: q.explanation,
+          timeLimit: 15,
+        };
+      }).filter(Boolean); // Remove invalid questions
+
+      // Take max 5 questions
+      const finalQuestions = shuffleArray(preparedQuestions).slice(0, 5);
 
       set({
         quizOpen: true,
         currentQuiz: {
-          projectId: quizData.project_id,
-          milestoneName: quizData.milestone_name,
-          questions: quizData.quiz.map((q, idx) => ({
-            id: `q${idx + 1}`,
-            question: q.question,
-            options: q.options,
-            correctAnswer: q.correct_answer,
-            explanation: q.explanation,
-          })),
+          projectId,
+          milestoneName: milestoneData?.title || milestoneData?.name || `Milestone ${milestoneNumber}`,
+          questions: finalQuestions,
+          passingScore: Math.ceil(finalQuestions.length * 0.6), // 60% to pass
         },
       });
     } catch (error) {
       console.error('Failed to load quiz:', error);
-      // Fallback to demo quiz
-      set({
-        quizOpen: true,
-        currentQuiz: {
-          projectId: 'demo',
-          milestoneName: 'Demo Milestone',
-          questions: [
-            {
-              id: 'q1',
-              question: 'Demo Question',
-              options: ['Option A', 'Option B', 'Option C', 'Option D'],
-              correctAnswer: 'Option A',
-              explanation: 'This is a demo quiz question.',
-            },
-          ],
-        },
-      });
+      // Fallback or error message?
+      set({ quizOpen: false });
+      const { addConsoleLog } = get();
+      addConsoleLog(`Failed to load assessment: ${error.message}`, 'error');
     }
   },
   closeQuiz: () => set({ quizOpen: false }),
@@ -1377,7 +1279,14 @@ const useLabStore = create((set, get) => ({
     const jsFile = state.files.find(f => f.name.endsWith('.js') && !f.name.endsWith('.jsx'))?.content || '';
 
     // If no HTML file, create a basic scaffold
-    const htmlContent = htmlFile || `<div class="app"><h1>${state.projectName || 'Preview'}</h1><p>Add an index.html file for a full preview.</p></div>`;
+    const rawHtmlContent = htmlFile || `<div class="app"><h1>${state.projectName || 'Preview'}</h1><p>Add an index.html file for a full preview.</p></div>`;
+
+    // Strip remote/relative script and stylesheet tags to avoid 404s inside about:srcdoc (no host path)
+    const sanitizedHtmlContent = rawHtmlContent
+      .replace(/<script[^>]*src=["'][^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, '');
+
+    const htmlContent = sanitizedHtmlContent;
 
     // Script to intercept console methods and forward to parent window
     const interceptorScript = `

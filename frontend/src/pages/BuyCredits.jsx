@@ -54,23 +54,69 @@ export default function BuyCredits() {
     setLoading(packId);
     try {
       const { creditsApi } = await import('../api/express');
-      const response = await creditsApi.purchaseCredits(packId);
+      
+      // 1. Create order on backend
+      const responseData = await creditsApi.createCreditOrder(packId);
+      const orderData = responseData.order || responseData;
+      
+      // 2. Open Razorpay Checkout widget
+      const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: "BrainBazaar",
+          description: `Purchase ${CREDIT_PACKS.find(p => p.id === packId)?.name}`,
+          order_id: orderData.id,
+          handler: async function (response) {
+              try {
+                  const verifyData = {
+                      paymentId: response.razorpay_payment_id,
+                      orderId: response.razorpay_order_id,
+                      signature: response.razorpay_signature,
+                      packId: packId
+                  };
+                  
+                  const result = await creditsApi.verifyCreditPayment(verifyData);
+                  
+                  if (result && result.success) {
+                    toast.success(result.message || `Successfully added credits!`);
+                    // Update local store
+                    setCredits(result.balance);
+                    // Refresh full profile
+                    await getProfile();
+                    
+                    // Navigate back to lab if we came from there
+                    if (sessionStorage.getItem('pendingProjectId')) {
+                      navigate('/lab');
+                    }
+                  }
+              } catch (verifyError) {
+                  console.error("Payment Verification Failed", verifyError);
+                  toast.error("Payment verification failed. Please contact support.");
+              }
+          },
+          prefill: {
+              name: user?.name || "Guest User",
+              email: user?.email || "guest@example.com",
+              contact: "9999999999"
+          },
+          theme: {
+              color: "#3b82f6" // blue-500
+          }
+      };
+      
+      const rzp = new window.Razorpay(options);
+      
+      rzp.on("payment.failed", function (response) {
+          console.error("Payment Failed", response.error);
+          toast.error(response.error.description);
+      });
 
-      if (response && response.success) {
-        toast.success(response.message || `Successfully added credits!`);
-        // Update local store
-        setCredits(response.balance);
-        // Refresh full profile
-        await getProfile();
-        
-        // Navigate back to lab if we came from there
-        if (sessionStorage.getItem('pendingProjectId')) {
-          navigate('/lab');
-        }
-      }
+      rzp.open();
+
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || error.message || "Failed to purchase credits");
+      toast.error(error.response?.data?.message || error.message || "Failed to initiate purchase");
     } finally {
       setLoading(null);
     }

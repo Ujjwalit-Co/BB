@@ -4,19 +4,19 @@ import useAuthStore from '../store/useAuthStore';
 import { projectsExpressApi, purchaseApi, githubApi } from '../api/express';
 import {
   Package, Plus, Github, DollarSign, Clock, CheckCircle, XCircle,
-  AlertTriangle, Eye, Loader2, ExternalLink, LogOut, TrendingUp
+  AlertTriangle, Eye, Loader2, ExternalLink, LogOut, TrendingUp, MessageSquare
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 export default function SellerPortal() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const [projects, setProjects] = useState([]);
   const [sales, setSales] = useState([]);
   const [githubStatus, setGithubStatus] = useState({ connected: false, username: null });
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalRevenue: 0, totalSales: 0 });
-  const [editingProject, setEditingProject] = useState(null);
+  const [feedbackModal, setFeedbackModal] = useState(null); // { project }
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { project }
 
   useEffect(() => {
     if (!user || user.role !== 'seller') {
@@ -45,9 +45,10 @@ export default function SellerPortal() {
 
       // Fetch GitHub status
       try {
+        const authToken = token || localStorage.getItem('authToken');
         const status = await fetch(
           `${import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1'}/github/status`,
-          { headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` } }
+          { headers: { ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) } }
         );
         const statusData = await status.json();
         if (statusData.success) setGithubStatus(statusData);
@@ -61,9 +62,10 @@ export default function SellerPortal() {
 
   const handleConnectGitHub = async () => {
     try {
+      const authToken = token || localStorage.getItem('authToken');
       const response = await fetch(
         `${import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1'}/github/connect`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` } }
+        { headers: { ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) } }
       );
       const data = await response.json();
       if (data.success) window.location.href = data.url;
@@ -72,21 +74,25 @@ export default function SellerPortal() {
     }
   };
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
+
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
     try {
-      await projectsExpressApi.updateProject(editingProject._id, {
-        title: editingProject.title,
-        description: editingProject.description,
-        price: editingProject.price,
-        badge: editingProject.badge,
-        category: editingProject.category,
-        thumbnail: { secure_url: editingProject.thumbnail?.secure_url || '' }
-      });
-      setEditingProject(null);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to update project", error);
+      await projectsExpressApi.deleteProject(deleteConfirm._id);
+      if (typeof toast !== 'undefined') {
+        toast.success("Project deleted successfully");
+      } else {
+        alert("Project deleted successfully!");
+      }
+      setProjects(projects.filter(p => p._id !== deleteConfirm._id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      if (typeof toast !== 'undefined') {
+        toast.error(err.response?.data?.message || "Failed to delete project");
+      } else {
+        alert(err.response?.data?.message || "Failed to delete project");
+      }
     }
   };
 
@@ -118,25 +124,26 @@ export default function SellerPortal() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50/30 dark:bg-transparent pt-12 pb-24 px-4 sm:px-8">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black mb-2">Seller Dashboard</h1>
-          <p className="text-slate-500 dark:text-slate-400">
-            Manage your projects and track sales
+          <h1 className="text-4xl md:text-5xl font-black font-headline tracking-tight text-transparent bg-clip-text bg-linear-to-r from-emerald-600 to-cyan-500 dark:from-emerald-400 dark:to-cyan-300 mb-2">Creator Dashboard</h1>
+          <p className="text-slate-500 dark:text-slate-400 font-body">
+            Manage your projects and track earnings
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => window.open(`/seller/${user?._id || user?.id}/profile`, '_blank')}
-            className="flex items-center gap-2 px-4 py-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+            className="flex items-center gap-2 px-4 py-3 glass-card text-indigo-600 dark:text-indigo-400 font-semibold rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-500/15 btn-press transition-all"
           >
             View Public Profile
           </button>
           <button
             onClick={() => navigate('/seller/upload')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl flex items-center gap-2 transition-colors"
+            className="bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 btn-press shadow-lg shadow-emerald-500/20"
           >
             <Plus size={20} /> Upload Project
           </button>
@@ -166,7 +173,7 @@ export default function SellerPortal() {
             <div className="p-3 bg-purple-500/10 rounded-xl text-purple-500"><DollarSign size={24} /></div>
             <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Revenue (80%)</span>
           </div>
-          <h3 className="text-3xl font-bold">₹{Math.round(stats.totalRevenue * 0.8)}</h3>
+          <h3 className="text-3xl font-bold">₹{Number(stats.totalRevenue * 0.8).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</h3>
         </div>
 
         <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-slate-200 dark:border-white/10">
@@ -242,15 +249,17 @@ export default function SellerPortal() {
                       {project.reviewStatus === 'draft' ? 'Submit for Review' : 'Resubmit for Review'}
                     </button>
                   )}
-                  {project.reviewStatus === 'rejected' && project.adminNotes && (
-                    <span className="text-xs text-red-400 max-w-[200px] truncate" title={project.adminNotes}>
-                      Note: {project.adminNotes}
-                    </span>
-                  )}
-                  {project.reviewStatus === 'needs-changes' && project.adminNotes && (
-                    <span className="text-xs text-orange-400 max-w-[200px] truncate" title={project.adminNotes}>
-                      Note: {project.adminNotes}
-                    </span>
+                  {['rejected', 'needs-changes'].includes(project.reviewStatus) && project.adminNotes && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setFeedbackModal(project); }}
+                      className="relative p-2 text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors group flex items-center gap-1.5"
+                      title="View Admin Feedback"
+                    >
+                      <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                      <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                      <MessageSquare size={18} />
+                      <span className="text-xs font-semibold">Feedback</span>
+                    </button>
                   )}
                   <button
                     onClick={() => navigate(`/project/${project._id}`)}
@@ -260,25 +269,20 @@ export default function SellerPortal() {
                   </button>
                   {['draft', 'rejected', 'needs-changes'].includes(project.reviewStatus) && (
                     <button
-                      onClick={() => setEditingProject(project)}
+                      onClick={() => navigate(`/seller/upload?edit=${project._id}`)}
                       className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 rounded-lg text-sm font-medium transition-colors"
                     >
                       Edit
                     </button>
                   )}
                   <button
-                    onClick={async () => {
-                      if (window.confirm('Are you sure you want to delete this project?')) {
-                        try {
-                          await projectsExpressApi.deleteProject(project._id);
-                          toast.success("Project deleted successfully");
-                          fetchData();
-                        } catch (err) {
-                          toast.error(err.response?.data?.message || err.message || "Failed to delete project");
-                        }
-                      }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirm(project);
                     }}
-                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors"
+                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                    style={{ zIndex: 9999, position: 'relative' }}
+                    type="button"
                   >
                     Delete
                   </button>
@@ -289,108 +293,79 @@ export default function SellerPortal() {
         )}
       </div>
 
-      {/* Edit Modal */}
-      {editingProject && (
+      {/* Feedback Modal */}
+      {feedbackModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-2xl p-6 max-w-lg w-full">
             <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
-              Edit Project Details
-              <button onClick={() => setEditingProject(null)} className="text-slate-400 hover:text-white">
+              <span className="flex items-center gap-2 text-amber-500">
+                <AlertTriangle size={20} /> Admin Feedback
+              </span>
+              <button onClick={() => setFeedbackModal(null)} className="text-slate-400 hover:text-white">
                 <XCircle size={20} />
               </button>
             </h2>
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Title</label>
-                <input
-                  required
-                  value={editingProject.title}
-                  onChange={(e) => setEditingProject({ ...editingProject, title: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={editingProject.description}
-                  onChange={(e) => setEditingProject({ ...editingProject, description: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Price (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={editingProject.price}
-                    onChange={(e) => setEditingProject({ ...editingProject, price: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Thumbnail Image URL</label>
-                  <input
-                    value={editingProject.thumbnail?.secure_url || ''}
-                    onChange={(e) => setEditingProject({ 
-                      ...editingProject, 
-                      thumbnail: { secure_url: e.target.value } 
-                    })}
-                    placeholder="https://imgur.com/... (Optional)"
-                    className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Category</label>
-                  <select
-                    value={editingProject.category}
-                    onChange={(e) => setEditingProject({ ...editingProject, category: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  >
-                    <option value="all">All</option>
-                    <option value="trending">🔥 Trending in Market</option>
-                    <option value="hackathon">🏆 Hackathon Critic</option>
-                    <option value="last-minute">⚡ Last Minute Helpers</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Badge Tier</label>
-                <select
-                  value={editingProject.badge}
-                  onChange={(e) => setEditingProject({ ...editingProject, badge: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                >
-                  <option value="silver">🥈 Silver (₹99-₹299)</option>
-                  <option value="gold">🥇 Gold (₹499-₹999)</option>
-                  <option value="diamond">💎 Diamond (₹1499-₹3999)</option>
-                </select>
-              </div>
-              <p className="text-xs text-slate-500 italic">
-                Note: Updating code files requires deleting and re-uploading the project.
-              </p>
-              <div className="pt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingProject(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
+            <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 text-sm whitespace-pre-wrap text-slate-600 dark:text-slate-300">
+              {feedbackModal.adminNotes}
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 flex justify-end gap-3">
+              <button
+                onClick={() => setFeedbackModal(null)}
+                className="px-4 py-2 text-slate-500 hover:text-white font-medium transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  navigate(`/seller/upload?edit=${feedbackModal._id}`);
+                  setFeedbackModal(null);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
+              >
+                Edit Project to Fix
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+                <XCircle size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Delete Project?</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="bg-slate-50 dark:bg-white/5 rounded-lg p-4 mb-6">
+              <p className="font-semibold">{deleteConfirm.title}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {deleteConfirm.description?.substring(0, 100)}...
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors"
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }

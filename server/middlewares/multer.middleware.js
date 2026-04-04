@@ -59,7 +59,7 @@ function checkVideoFileType(req, file, cb) {
 
 const uploadImage = multer({
     storage: imageStorage,
-    limits: { fileSize: 1000000 }, // 1MB limit
+    limits: { fileSize: 5242880 }, // 5MB limit
     fileFilter: (req,file, cb)=>{
         checkFileType(file,cb);
     }

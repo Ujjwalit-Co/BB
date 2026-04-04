@@ -33,7 +33,7 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-[#0d0d0d] text-slate-900 dark:text-white transition-colors duration-300">
       <Navbar />
-      <main className="flex-grow selection:bg-blue-500/30">
+      <main className="flex-grow selection:bg-blue-500/30 overflow-x-hidden pt-16">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
@@ -42,7 +42,7 @@ function AppContent() {
           <Route path="/seller" element={<SellerPortal />} />
           <Route path="/seller/upload" element={<UploadProject />} />
           <Route path="/seller/github-callback" element={<GitHubCallback />} />
-          <Route path="/seller/:sellerId/profile" element={<SellerProfile />} /> {/* Added SellerProfile route */}
+          <Route path="/seller/:sellerId/profile" element={<SellerProfile />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/buy-credits" element={<BuyCredits />} />

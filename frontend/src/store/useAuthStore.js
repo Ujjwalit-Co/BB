@@ -11,8 +11,20 @@ const useAuthStore = create(
 
       // Set authentication
       setAuth: (user, token) => {
-        localStorage.setItem('authToken', token);
+        // Keep backward compatibility with legacy localStorage authToken usage
+        if (typeof window !== 'undefined') {
+          if (token) {
+            localStorage.setItem('authToken', token);
+          } else {
+            localStorage.removeItem('authToken');
+          }
+        }
         set({ user, token, isAuthenticated: true });
+      },
+
+      // Set user (used by lab store)
+      setUser: (user) => {
+        set({ user });
       },
 
       // Login
@@ -70,7 +82,6 @@ const useAuthStore = create(
         } catch (error) {
           console.error('Logout error:', error);
         }
-        localStorage.removeItem('authToken');
         set({ user: null, token: null, isAuthenticated: false });
       },
 
@@ -106,7 +117,9 @@ const useAuthStore = create(
 
       // Clear auth state (on token expiry)
       clearAuth: () => {
-        localStorage.removeItem('authToken');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('authToken');
+        }
         set({ user: null, token: null, isAuthenticated: false });
       },
     }),

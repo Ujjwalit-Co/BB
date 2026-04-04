@@ -1,0 +1,10 @@
+# Ignore heavy files during deployment
+node_modules/
+.git/
+*.md
+.env
+.env.local
+.vscode/
+.idea/
+dist/
+build/

@@ -4,8 +4,9 @@ import useAuthStore from '../store/useAuthStore';
 import { adminApi } from '../api/express';
 import {
   Shield, CheckCircle, XCircle, AlertTriangle, Clock, Eye,
-  Users, Package, TrendingUp, DollarSign, Loader2, ChevronDown
+  Users, Package, TrendingUp, DollarSign, Loader2, ChevronDown, Edit3
 } from 'lucide-react';
+import AdminQuizDialog from '../components/admin/AdminQuizDialog';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -15,7 +16,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [expandedProject, setExpandedProject] = useState(null);
   const [adminNotes, setAdminNotes] = useState({});
+  const [adminCategories, setAdminCategories] = useState({});
   const [actionLoading, setActionLoading] = useState(null);
+  const [editingQuizProject, setEditingQuizProject] = useState(null);
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -45,7 +48,14 @@ export default function AdminDashboard() {
     setActionLoading(projectId);
     try {
       const notes = adminNotes[projectId] || '';
-      if (action === 'approve') await adminApi.approveProject(projectId);
+      const category = adminCategories[projectId];
+      
+      if (action === 'approve') {
+        if (category && category !== 'all') {
+          await projectsExpressApi.updateProject(projectId, { category });
+        }
+        await adminApi.approveProject(projectId);
+      }
       else if (action === 'decline') await adminApi.declineProject(projectId, notes);
       else if (action === 'request-changes') await adminApi.requestChanges(projectId, notes);
 
@@ -86,7 +96,7 @@ export default function AdminDashboard() {
             { label: 'Total Users', value: stats.totalUsers, icon: Users, color: 'indigo' },
             { label: 'Published Projects', value: stats.publishedProjects, icon: Package, color: 'emerald' },
             { label: 'Pending Reviews', value: stats.pendingReviews, icon: Clock, color: 'amber' },
-            { label: 'Platform Revenue', value: `₹${stats.platformRevenue}`, icon: DollarSign, color: 'purple' },
+            { label: 'Platform Revenue', value: stats.platformRevenue ? `₹${Number(stats.platformRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 0 })}` : '₹0', icon: DollarSign, color: 'purple' },
           ].map(stat => (
             <div key={stat.label} className="bg-white dark:bg-[#1a1a1a] p-5 rounded-2xl border border-slate-200 dark:border-white/10">
               <div className="flex items-center gap-2 mb-2">
@@ -161,22 +171,46 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {project.githubUrl && (
-                      <a href={project.githubUrl} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-indigo-500 hover:text-indigo-400 font-medium">
-                        <Eye size={16} /> View on GitHub →
-                      </a>
-                    )}
+                    <div className="flex items-center gap-4 py-2">
+                      {project.githubUrl && (
+                        <a href={project.githubUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-indigo-500 hover:text-indigo-400 font-medium">
+                          <Eye size={16} /> View on GitHub →
+                        </a>
+                      )}
+                      
+                      <button 
+                         onClick={() => setEditingQuizProject(project)}
+                         className="inline-flex items-center gap-2 text-sm text-purple-500 hover:text-purple-400 font-medium"
+                      >
+                         <Edit3 size={16} /> Inspect &amp; Edit Quizzes
+                      </button>
+                    </div>
 
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Admin Notes</label>
-                      <textarea
-                        value={adminNotes[project._id] || ''}
-                        onChange={(e) => setAdminNotes(prev => ({ ...prev, [project._id]: e.target.value }))}
-                        placeholder="Add feedback or notes for the seller..."
-                        rows={3}
-                        className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Set Category</label>
+                        <select
+                          value={adminCategories[project._id] || project.category || 'all'}
+                          onChange={(e) => setAdminCategories(prev => ({ ...prev, [project._id]: e.target.value }))}
+                          className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm"
+                        >
+                          <option value="all">General (All)</option>
+                          <option value="trending">🔥 Trending in Market</option>
+                          <option value="hackathon">🏆 Hackathon Critic</option>
+                          <option value="last-minute">⚡ Last Minute Helpers</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Admin Notes</label>
+                        <textarea
+                          value={adminNotes[project._id] || ''}
+                          onChange={(e) => setAdminNotes(prev => ({ ...prev, [project._id]: e.target.value }))}
+                          placeholder="Add feedback or notes for the seller..."
+                          rows={3}
+                          className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -209,6 +243,18 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Render the generic project list as before (if needed) ... */}
+
+      {editingQuizProject && (
+        <AdminQuizDialog 
+          project={editingQuizProject}
+          onClose={() => setEditingQuizProject(null)}
+          onSave={() => {
+            fetchData();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -4,10 +4,10 @@
 **Version:** 2.0
 
 **Team:**
-- **Daksh** - Code Editor / Lab Frontend Lead
-- **Ujjwal** - Node.js Backend (Express + MongoDB + Payments)
-- **Aayush** - FastAPI Backend (AI Services)
-- **Tushar, Tanishq, Priyanshu** - Other Pages Frontend (Home, Catalog, Dashboard, Auth, Seller Portal)
+- **Daksh Dixit** - Code Editor / Lab Frontend Lead
+- **Tanishq Rastogi** - Node.js Backend (Express + MongoDB + Payments)
+- **Aayush Kumar** - FastAPI Backend (AI Services)
+- **Priyanshu Sharma** - Other Pages Frontend (Home, Catalog, Dashboard, Auth, Seller Portal)
 
 ---
 

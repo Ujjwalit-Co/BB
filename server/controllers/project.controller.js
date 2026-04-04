@@ -1,5 +1,5 @@
 import Project from "../models/Project.js";
-import { generateMilestones, generateProjectSummary, analyzeComplexity } from "../services/ai.service.js";
+import { generateMilestones, generateProjectSummary, analyzeComplexity, enhanceReadmeForTutor, enhanceSummary as enhanceSummaryAI, enhanceMilestones as enhanceMilestonesAI, generateQuizzesForProjectBg } from "../services/ai.service.js";
 import { streamRepositoryZip } from "../services/github.service.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
@@ -67,12 +67,25 @@ export const getProjectById = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Increment views
-    project.views += 1;
-    await project.save();
+    // Check for broken quizzes and trigger background generation if any milestone lacks a valid quiz
+    const needsQuizFix = project.milestones.some(ms => 
+      !ms.quiz || 
+      !ms.quiz.questions || 
+      ms.quiz.questions.length === 0 ||
+      ms.quiz.questions.some(q => q.correctAnswer === undefined && q.correct_answer === undefined)
+    );
+
+    if (needsQuizFix) {
+      console.log(`[project.controller] Project ${project._id} has broken/missing quizzes. Triggering background fix...`);
+      generateQuizzesForProjectBg(project._id).catch(err => console.error("Bg Quiz Fix Error:", err));
+    }
+
+    // Increment views using findByIdAndUpdate to avoid full document save
+    await Project.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } });
 
     res.json({ success: true, project });
   } catch (error) {
+    console.error("[getProjectById] Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -87,6 +100,9 @@ export const createProject = async (req, res) => {
 
     const project = await Project.create(projectData);
     
+    // Auto-generate quizzes in the background
+    generateQuizzesForProjectBg(project._id).catch(err => console.error("Bg Quiz Error:", err));
+
     res.status(201).json({
       success: true,
       message: "Project created successfully",
@@ -119,9 +135,87 @@ export const updateProject = async (req, res) => {
       runValidators: true,
     });
 
+    // Auto-generate quizzes in the background (if any are missing)
+    generateQuizzesForProjectBg(project._id).catch(err => console.error("Bg Quiz Error:", err));
+
     res.json({ success: true, project });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Fetch or generate dynamic quiz for a standalone milestone
+export const getMilestoneQuiz = async (req, res) => {
+  try {
+    const { id, milestoneNumber } = req.params;
+    const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    
+    const msNum = parseInt(milestoneNumber);
+    const ms = project.milestones.find(m => m.number === msNum);
+    if (!ms) return res.status(404).json({ error: "Milestone not found" });
+
+    if (ms.quiz && ms.quiz.questions && ms.quiz.questions.length > 0) {
+      // Check if the first question has a correctAnswer. If missing, the quiz is broken.
+      const isBroken = ms.quiz.questions.some(q => q.correctAnswer === undefined && q.correct_answer === undefined);
+      if (!isBroken) {
+        return res.json({ questions: ms.quiz.questions });  // Changed from quiz to questions
+      }
+      console.log(`[project.controller] Quiz for milestone ${msNum} is broken (missing correctAnswer). Re-generating...`);
+    }
+
+    const { generateQuiz } = await import("../services/ai.service.js");
+    const quizData = await generateQuiz(project, ms, msNum);
+    
+    if (quizData && quizData.quiz) {
+      // Normalize questions to match schema and ensure consistency
+      const normalizedQuestions = quizData.quiz.map(q => {
+        let correctIdx = q.correctAnswer ?? q.correct_answer;
+        let finalIdx = 0;
+        
+        // Ensure options exist and are strings
+        const options = (q.options || []).map(opt => String(opt).trim());
+        
+        if (typeof correctIdx === 'number') {
+          finalIdx = correctIdx;
+        } else if (typeof correctIdx === 'string') {
+          const trimmedCorrect = correctIdx.trim();
+          // 1. Try exact match
+          const exactIdx = options.indexOf(trimmedCorrect);
+          if (exactIdx !== -1) {
+            finalIdx = exactIdx;
+          } else {
+            // 2. Try case-insensitive match
+            const lowerCorrect = trimmedCorrect.toLowerCase();
+            const caseInsensitiveIdx = options.findIndex(opt => opt.toLowerCase() === lowerCorrect);
+            if (caseInsensitiveIdx !== -1) {
+              finalIdx = caseInsensitiveIdx;
+            } else {
+              // 3. Try parsing as a number index
+              const parsed = parseInt(trimmedCorrect);
+              if (!isNaN(parsed) && parsed >= 0 && parsed < options.length) {
+                finalIdx = parsed;
+              }
+            }
+          }
+        }
+        
+        return {
+          question: q.question,
+          options: options,
+          correctAnswer: finalIdx,
+          explanation: q.explanation || ""
+        };
+      });
+
+      ms.quiz = { questions: normalizedQuestions };
+      await project.save();
+      return res.json({ questions: normalizedQuestions });  // Changed from quiz to questions
+    }
+    
+    res.status(500).json({ error: "Failed to generate dynamic quiz" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -202,13 +296,65 @@ export const generateAIContent = async (req, res) => {
     ]);
 
     const overview = overviewResult.status === 'fulfilled' ? overviewResult.value : {};
+    const complexity = complexityResult.status === 'fulfilled' ? complexityResult.value : { complexity: 'beginner' };
 
+    // Flatten into a clean response the frontend can directly consume
     res.json({
       success: true,
-      milestones: overview, // The overview object contains .milestones
-      summary: overview,    // The overview object contains .summary and .readme
-      complexity: complexityResult.status === 'fulfilled' ? complexityResult.value : {},
+      readme: overview.readme || '',
+      summary: overview.summary || readme.substring(0, 300),
+      milestones: overview.milestones || [],
+      complexity,
+      aiAvailable: overview.success !== false, // tells frontend if AI actually ran or fallback was used
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// =====================
+// ENHANCE README FOR AI TUTOR
+// =====================
+export const enhanceReadme = async (req, res) => {
+  try {
+    const { readme } = req.body;
+    if (!readme) {
+      return res.status(400).json({ message: "README content is required" });
+    }
+    const result = await enhanceReadmeForTutor(readme);
+    res.json({ success: true, enhanced_readme: result.enhanced_readme, aiAvailable: result.success });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// =====================
+// ENHANCE SUMMARY
+// =====================
+export const enhanceSummaryContent = async (req, res) => {
+  try {
+    const { summary, readme } = req.body;
+    if (!summary) {
+      return res.status(400).json({ message: "Summary content is required" });
+    }
+    const result = await enhanceSummaryAI(summary, readme || '');
+    res.json({ success: true, enhanced_summary: result.enhanced_summary, aiAvailable: result.success });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// =====================
+// ENHANCE MILESTONES
+// =====================
+export const enhanceMilestonesContent = async (req, res) => {
+  try {
+    const { milestones, readme } = req.body;
+    if (!milestones || !Array.isArray(milestones)) {
+      return res.status(400).json({ message: "Milestones array is required" });
+    }
+    const result = await enhanceMilestonesAI(milestones, readme || '');
+    res.json({ success: true, enhanced_milestones: result.enhanced_milestones, aiAvailable: result.success });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
