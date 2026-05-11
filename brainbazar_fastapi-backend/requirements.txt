@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
+pymongo>=4.6.0

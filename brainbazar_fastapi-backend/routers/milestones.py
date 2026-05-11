@@ -1,0 +1,302 @@
+from fastapi import APIRouter, HTTPException
+from services import data_service, gemini_service
+from models.schemas import (
+    AskRequest,
+    MilestoneAIResponse,
+    MilestoneAskResponse,
+    MilestoneQuizResponse,
+    StepAskResponse,
+    CompletionResponse,
+    StepResponse,
+    StepGuidanceResponse,
+    StepCompleteResponse,
+)
+
+router = APIRouter()
+
+
+def _get_project_and_milestone(project_id: str, milestone_number: int):
+    """Shared validation — raises 404 if project or milestone doesn't exist."""
+    project = data_service.get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    total = data_service.get_total_milestones(project_id)
+    if milestone_number < 1 or milestone_number > total:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Milestone {milestone_number} not found. Project '{project_id}' has {total} milestones.",
+        )
+
+    milestone = data_service.get_milestone(project_id, milestone_number)
+    return project, milestone
+
+
+def _get_project_milestone_step(project_id: str, milestone_number: int, step_number: int):
+    """Shared validation — raises 404 if project, milestone, or step doesn't exist."""
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+
+    total_steps = data_service.get_total_steps(project_id, milestone_number)
+    if step_number < 1 or step_number > total_steps:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Step {step_number} not found. Milestone {milestone_number} has {total_steps} steps.",
+        )
+
+    step = data_service.get_step(project_id, milestone_number, step_number)
+    return project, milestone, step
+
+
+# ──────────────────────────────────────────────
+# Milestone-level endpoints (legacy support)
+# ──────────────────────────────────────────────
+
+
+@router.get("/{project_id}/milestones/{milestone_number}/guide", response_model=MilestoneAIResponse)
+def get_milestone_guide(project_id: str, milestone_number: int):
+    """
+    AI-generated step-by-step guide for a specific milestone.
+    Includes: overview, steps with code, how to test, common mistakes, done checklist.
+    """
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    content = gemini_service.get_milestone_guide(project, milestone_number, milestone)
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "milestone_name": milestone["name"],
+        "content": content,
+    }
+
+
+@router.get("/{project_id}/milestones/{milestone_number}/hint")
+def get_milestone_hint(project_id: str, milestone_number: int):
+    """
+    Returns a single small hint to nudge the user without giving away the solution.
+    """
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    hint = gemini_service.get_milestone_hint(project, milestone_number, milestone)
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "milestone_name": milestone["name"],
+        "hint": hint,
+    }
+
+
+@router.post("/{project_id}/milestones/{milestone_number}/ask")
+def ask_question(project_id: str, milestone_number: int, body: AskRequest):
+    """
+    Ask the AI a specific question in the context of the current milestone.
+    Returns structured response with code suggestions.
+    """
+    try:
+        project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    except HTTPException as e:
+        # If project is not found but context is provided, use the context
+        if e.status_code == 404 and body.project_context:
+            project = body.project_context
+            # Normalize Express fields to FastAPI expectations
+            if "title" not in project:
+                raise HTTPException(status_code=400, detail="Invalid project_context provided. Need 'title'.")
+            
+            # Map complexity -> level, techStack -> technology, description -> summary
+            if "level" not in project and "complexity" in project:
+                project["level"] = project["complexity"]
+            if "technology" not in project and "techStack" in project:
+                project["technology"] = project["techStack"]
+            if "summary" not in project and "description" in project:
+                project["summary"] = project["description"]
+            
+            # Final validation
+            if "level" not in project: project["level"] = "Intermediate"
+            if "technology" not in project: project["technology"] = []
+            if "summary" not in project: project["summary"] = ""
+
+            # Find the milestone in the context
+            milestone = None
+            if "milestones" in project:
+                idx = milestone_number - 1
+                if 0 <= idx < len(project["milestones"]):
+                    milestone = project["milestones"][idx]
+            
+            if not milestone:
+                # Fallback milestone if not found in list
+                milestone = {"name": f"Milestone {milestone_number}", "description": "Dynamic Milestone"}
+            else:
+                # Normalize milestone fields
+                if "name" not in milestone and "title" in milestone:
+                    milestone["name"] = milestone["title"]
+                if "name" not in milestone:
+                    milestone["name"] = f"Milestone {milestone_number}"
+        else:
+            raise e
+
+    # Convert body.files (Pydantic models) to a list of dicts for gemini_service
+    clean_files = [f.dict() for f in body.files] if body.files else []
+
+    try:
+        response = gemini_service.ask_milestone_question(
+            project, milestone_number, milestone, body.question, clean_files, body.lab_mode
+        )
+        return {
+            "project_id": project_id,
+            "milestone_number": milestone_number,
+            "question": body.question,
+            "answer": response.get("answer", ""),
+            "suggestedFiles": response.get("suggestedFiles", []),
+            "suggestedCommands": response.get("suggestedCommands", []),
+        }
+    except Exception as e:
+        print(f"ERROR in ask_question: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{project_id}/milestones/{milestone_number}/complete", response_model=CompletionResponse)
+def complete_milestone(project_id: str, milestone_number: int):
+    """
+    Mark a milestone as complete. Returns an AI-generated congratulations message
+    and a preview of the next milestone (or project completion message if it's the last one).
+    """
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    message = gemini_service.get_milestone_completion(project, milestone_number, milestone)
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "message": message,
+    }
+
+
+@router.get("/{project_id}/milestones/{milestone_number}/quiz", response_model=MilestoneQuizResponse)
+def get_milestone_quiz(project_id: str, milestone_number: int, num_questions: int = 5):
+    """
+    AI-generated quiz focused on one milestone.
+    """
+    if num_questions < 1 or num_questions > 20:
+        raise HTTPException(status_code=400, detail="num_questions must be between 1 and 20")
+
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    quiz = gemini_service.generate_milestone_quiz(project, milestone_number, milestone, num_questions)
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "milestone_name": milestone["name"],
+        "total_questions": len(quiz),
+        "questions": quiz,  # Changed from quiz to questions
+    }
+
+
+# ──────────────────────────────────────────────
+# Step-level endpoints (NEW)
+# ──────────────────────────────────────────────
+
+
+@router.get("/{project_id}/milestones/{milestone_number}/steps")
+def list_steps(project_id: str, milestone_number: int):
+    """
+    Return all steps in a milestone with their basic info.
+    """
+    project, milestone = _get_project_and_milestone(project_id, milestone_number)
+    steps = data_service.list_steps(project_id, milestone_number) or []
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "milestone_name": milestone["name"],
+        "total_steps": len(steps),
+        "steps": [
+            {
+                "stepNumber": s["stepNumber"],
+                "title": s["title"],
+                "description": s["description"],
+            }
+            for s in steps
+        ],
+    }
+
+
+@router.get("/{project_id}/milestones/{milestone_number}/steps/{step_number}", response_model=StepResponse)
+def get_step(project_id: str, milestone_number: int, step_number: int):
+    """
+    Get full details of a specific step including code blocks, verification, and hints.
+    """
+    project, milestone, step = _get_project_milestone_step(project_id, milestone_number, step_number)
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "step_number": step_number,
+        "step_title": step["title"],
+        "step_description": step["description"],
+        "codeBlocks": step.get("codeBlocks", []),
+        "verificationSteps": step["verificationSteps"],
+        "hints": step["hints"],
+    }
+
+
+@router.get(
+    "/{project_id}/milestones/{milestone_number}/steps/{step_number}/guide",
+    response_model=StepGuidanceResponse,
+)
+def get_step_guide(project_id: str, milestone_number: int, step_number: int):
+    """
+    [AI CALL] Get detailed guidance for a specific step.
+    Explains the code, context, and how to complete it.
+    """
+    project, milestone, step = _get_project_milestone_step(project_id, milestone_number, step_number)
+
+    content = gemini_service.explain_step_code(project, milestone_number, step)
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "step_number": step_number,
+        "step_title": step["title"],
+        "content": content,
+    }
+
+
+@router.post("/{project_id}/milestones/{milestone_number}/steps/{step_number}/ask", response_model=StepAskResponse)
+def ask_step_question(project_id: str, milestone_number: int, step_number: int, body: AskRequest):
+    """
+    [AI CALL] Ask a question about a specific step.
+    """
+    project, milestone, step = _get_project_milestone_step(project_id, milestone_number, step_number)
+
+    answer = gemini_service.ask_step_question(project, milestone_number, step, body.question)
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "step_number": step_number,
+        "question": body.question,
+        "answer": answer,
+    }
+
+
+@router.post("/{project_id}/milestones/{milestone_number}/steps/{step_number}/complete", response_model=StepCompleteResponse)
+def complete_step(project_id: str, milestone_number: int, step_number: int):
+    """
+    [AI CALL] Mark a step as complete.
+    Returns a congratulations message and preview of next step.
+    """
+    project, milestone, step = _get_project_milestone_step(project_id, milestone_number, step_number)
+
+    total_steps = data_service.get_total_steps(project_id, milestone_number)
+    message = gemini_service.get_step_completion_message(project, milestone_number, step, total_steps)
+
+    next_preview = None
+    if step_number < total_steps:
+        next_step = data_service.get_step(project_id, milestone_number, step_number + 1)
+        if next_step:
+            next_preview = f"Next: Step {step_number + 1} — {next_step['title']}"
+
+    return {
+        "project_id": project_id,
+        "milestone_number": milestone_number,
+        "step_number": step_number,
+        "message": message,
+        "next_step_preview": next_preview,
+    }
