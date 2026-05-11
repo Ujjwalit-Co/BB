@@ -103,6 +103,23 @@ const projectSchema = new mongoose.Schema(
       freeMessageLimit: { type: Number, default: 10 }, // Messages per milestone for free users
       purchasedMessageLimit: { type: Number, default: 20 }, // Messages per milestone before credits kick in
     },
+    certificateTemplate: {
+      enabled: { type: Boolean, default: true },
+      name: { type: String, default: "BrainBazaar Builder Certificate" },
+      headline: { type: String, default: "Certified Project Builder" },
+      body: {
+        type: String,
+        default: "This certifies that {{studentName}} completed {{projectTitle}} through BrainBazaar's milestone-based project course.",
+      },
+      issuerName: { type: String, default: "BrainBazaar" },
+      accentColor: { type: String, default: "#1E3A2F" },
+      // Visual layout for custom certificate rendering
+      backgroundImageUrl: { type: String, default: "" },
+      namePositionX: { type: Number, default: 50 },  // % from left
+      namePositionY: { type: Number, default: 50 },  // % from top
+      nameFontSize: { type: Number, default: 48 },
+      nameColor: { type: String, default: "#1E3A2F" },
+    },
     // Download Links (full project)
     downloadLink: {
       type: String,

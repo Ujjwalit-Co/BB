@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@webcontainer/api": "^1.6.4",
+    "pyodide": "^0.29.3"
+  }
+}

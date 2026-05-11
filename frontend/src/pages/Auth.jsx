@@ -1,45 +1,45 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, BookOpen, CheckCircle2, GraduationCap, Loader2, Sparkles, Upload } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
+
+const learnerPerks = ['Start milestone 1 free', 'Track your build journey', 'Use AI help inside labs'];
+const creatorPerks = ['Turn GitHub repos into courses', 'Edit AI-generated milestones', 'Earn from real student builds'];
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { login, register, registerSeller } = useAuthStore();
-  
+  const { user, login, register, registerSeller } = useAuthStore();
   const [isLogin, setIsLogin] = useState(true);
   const [isSeller, setIsSeller] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  useEffect(() => {
+    if (user) {
+      navigate(user.role === 'seller' ? '/seller' : '/dashboard');
+    }
+  }, [user, navigate]);
+
+  const perks = isSeller ? creatorPerks : learnerPerks;
+
+  const handleChange = (event) => {
+    setFormData({ ...formData, [event.target.name]: event.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
     try {
       let result;
-      if (isLogin) {
-        result = await login({ email: formData.email, password: formData.password });
-      } else if (isSeller) {
-        result = await registerSeller(formData);
-      } else {
-        result = await register(formData);
-      }
+      if (isLogin) result = await login({ email: formData.email, password: formData.password });
+      else if (isSeller) result = await registerSeller(formData);
+      else result = await register(formData);
 
-      if (result.success) {
-        navigate('/catalog');
-      } else {
-        setError(result.message || 'Authentication failed');
-      }
+      if (result.success) navigate(isSeller ? '/seller' : '/catalog');
+      else setError(result.message || 'Authentication failed');
     } catch (err) {
       setError(err.message || 'An error occurred');
     } finally {
@@ -48,179 +48,170 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center nebula-gradient px-4 py-12 relative overflow-hidden">
-      {/* Decorative Blur Orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-400/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
-
-      <div className="w-full max-w-md relative z-10 transition-transform duration-500 ease-out">
-        <div className="glass-card rounded-3xl p-8 sm:p-10 shadow-2xl card-hover relative overflow-hidden">
-          {/* subtle top inner glow */}
-          <div className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-white/40 to-transparent" />
-          
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-black font-headline tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-indigo-600 to-cyan-500 dark:from-indigo-400 dark:to-cyan-300 mb-3 drop-shadow-sm">
-              BrainBazaar
-            </h1>
-            <p className="font-body font-medium text-slate-600 dark:text-slate-400 text-sm">
-              {isLogin 
-                ? 'Welcome back! Continue your learning journey.' 
-                : isSeller 
-                  ? 'Join as a Creator and monetize your projects.' 
-                  : 'Create a student account to get started.'}
-            </p>
+    <div className="min-h-[calc(100vh-6rem)] bg-[#F6F4EF] px-4 py-6 text-[#1C1A17] dark:bg-[#10130F] dark:text-[#F7F2E8]">
+      <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[0.82fr_1fr] lg:items-center">
+        <section className="relative overflow-hidden rounded-2xl border border-[#E2DDD4] bg-[#1E3A2F] p-5 text-white shadow-[0_18px_46px_rgba(28,26,23,0.12)] md:p-6 dark:border-white/10 dark:bg-[#171B16]">
+          <div className="absolute right-6 top-6 grid grid-cols-3 gap-1 opacity-20">
+            {Array.from({ length: 18 }).map((_, index) => (
+              <span key={index} className="h-2 w-2 rounded-full bg-white" />
+            ))}
           </div>
 
-          {/* Premium Segmented Control for Role Toggle (Sign Up only) */}
+          <div className="relative">
+            <Link to="/" className="inline-flex items-center gap-2 font-headline text-2xl font-semibold">
+              <GraduationCap className="text-[#D4840A]" />
+              BrainBazaar
+            </Link>
+
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
+              {isLogin ? 'Welcome back' : isSeller ? 'Creator onboarding' : 'Learner onboarding'}
+            </p>
+            <h1 className="mt-2 font-headline text-3xl font-semibold leading-tight">
+              {isLogin ? 'Continue your build streak.' : isSeller ? 'Give your project a second life.' : 'Start building like the seniors did.'}
+            </h1>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-white/72">
+              {isLogin
+                ? 'Jump back into your milestones, AI credits, and unlocked build courses.'
+                : isSeller
+                  ? 'Upload a repository, shape it into milestones, and publish a learning journey.'
+                  : 'Learn with real projects, free first milestones, checkpoints, and AI guidance.'}
+            </p>
+
+            <div className="mt-5 grid gap-2">
+              {perks.map((perk) => (
+                <div key={perk} className="flex items-center gap-3 rounded-xl bg-white/8 p-2.5">
+                  <CheckCircle2 size={18} className="text-[#2A9D6F]" />
+                  <span className="text-sm font-bold">{perk}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[
+                { label: 'Courses', value: '20+' },
+                { label: 'Preview', value: 'Free' },
+                { label: 'AI help', value: '10 msg' },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-xl bg-white p-3 text-[#1C1A17] dark:bg-[#10130F] dark:text-[#F7F2E8]">
+                  <p className="font-headline text-xl font-semibold text-[#1E3A2F] dark:text-[#9DE6B8]">{stat.value}</p>
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#5C5851]">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#E2DDD4] bg-white p-5 shadow-[0_14px_36px_rgba(28,26,23,0.07)] md:p-6 dark:border-white/10 dark:bg-[#171B16]">
+          <div className="mb-5 flex rounded-xl bg-[#F0EDE6] p-1 dark:bg-[#10130F]">
+            <button
+              type="button"
+              onClick={() => setIsLogin(true)}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold transition ${isLogin ? 'bg-white text-[#1E3A2F] shadow-sm dark:bg-[#26352B] dark:text-[#DDEBDD]' : 'text-[#5C5851] dark:text-[#B8C2B1]'}`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsLogin(false)}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold transition ${!isLogin ? 'bg-white text-[#1E3A2F] shadow-sm dark:bg-[#26352B] dark:text-[#DDEBDD]' : 'text-[#5C5851] dark:text-[#B8C2B1]'}`}
+            >
+              Create account
+            </button>
+          </div>
+
           {!isLogin && (
-            <div className="flex mb-8 bg-slate-200/50 dark:bg-white/5 p-1.5 rounded-xl relative z-10">
+            <div className="mb-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setIsSeller(false)}
-                className={`relative flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
-                  !isSeller
-                    ? 'text-indigo-700 dark:text-indigo-300 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
+                className={`rounded-xl border p-3 text-left transition ${!isSeller ? 'border-[#1E3A2F] bg-[#E8F2EC] dark:border-[#7FC79C] dark:bg-[#223426]' : 'border-[#E2DDD4] bg-white dark:border-white/10 dark:bg-[#10130F]'}`}
               >
-                {!isSeller && (
-                  <span className="absolute inset-0 bg-white dark:bg-[#2A2A2A] rounded-lg shadow-sm -z-10" style={{ transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                )}
-                Student
+                <BookOpen size={21} className="text-[#1E3A2F]" />
+                <p className="mt-3 font-bold">Learner</p>
+                <p className="mt-1 text-xs leading-5 text-[#5C5851]">Build projects step by step.</p>
               </button>
               <button
                 type="button"
                 onClick={() => setIsSeller(true)}
-                className={`relative flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
-                  isSeller
-                    ? 'text-cyan-700 dark:text-cyan-300 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
+                className={`rounded-xl border p-3 text-left transition ${isSeller ? 'border-[#D4840A] bg-[#FEF3DC] dark:border-[#F0C565] dark:bg-[#3A2A12]' : 'border-[#E2DDD4] bg-white dark:border-white/10 dark:bg-[#10130F]'}`}
               >
-                {isSeller && (
-                  <span className="absolute inset-0 bg-white dark:bg-[#2A2A2A] rounded-lg shadow-sm -z-10" style={{ transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                )}
-                Creator
+                <Upload size={21} className="text-[#D4840A]" />
+                <p className="mt-3 font-bold">Creator</p>
+                <p className="mt-1 text-xs leading-5 text-[#5C5851]">Publish project courses.</p>
               </button>
             </div>
           )}
 
-          {/* Login/Signup Tabs */}
-          <div className="flex justify-center mb-8 border-b border-slate-200 dark:border-white/10">
-            <button
-              onClick={() => setIsLogin(true)}
-              className={`px-6 py-3 text-sm font-bold transition-all relative ${
-                isLogin
-                  ? 'text-indigo-600 dark:text-indigo-400'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              Login
-              {isLogin && (
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.5)]" />
-              )}
-            </button>
-            <button
-              onClick={() => setIsLogin(false)}
-              className={`px-6 py-3 text-sm font-bold transition-all relative ${
-                !isLogin
-                  ? 'text-indigo-600 dark:text-indigo-400'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              Sign Up
-              {!isLogin && (
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.5)]" />
-              )}
-            </button>
+          <div className="mb-5">
+            <p className="inline-flex items-center gap-2 rounded-full bg-[#FEF3DC] px-3 py-1 text-xs font-bold text-[#92580A] dark:bg-[#3A2A12] dark:text-[#FFD98A]">
+              <Sparkles size={14} />
+              {isLogin ? 'Your learning desk is waiting' : isSeller ? 'Creator Studio access' : 'Milestone 1 starts free'}
+            </p>
+            <h2 className="mt-3 font-headline text-2xl font-semibold">
+              {isLogin ? 'Sign in to BrainBazaar' : isSeller ? 'Create creator account' : 'Create learner account'}
+            </h2>
           </div>
 
-          {/* Error Alert */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-              <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-red-600 dark:text-red-400 text-sm font-medium">{error}</span>
+            <div className="mb-5 rounded-xl border border-[#C0392B]/20 bg-[#FCE8E8] p-4 text-sm font-semibold text-[#C0392B]">
+              {error}
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 font-body">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {!isLogin && (
-              <div className="relative input-focus group">
+              <label className="block">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#5C5851]">Full name</span>
                 <input
                   type="text"
                   name="name"
-                  id="name"
                   value={formData.name}
                   onChange={handleChange}
-                  required={!isLogin}
-                  className="peer w-full px-4 pt-6 pb-2 rounded-xl border border-slate-300/60 dark:border-white/10 bg-white/50 dark:bg-[#1a1a1a]/50 text-slate-900 dark:text-white outline-none transition-all placeholder-transparent"
-                  placeholder="John Doe"
+                  required
+                  className="mt-1.5 h-10 w-full rounded-lg border border-[#E2DDD4] bg-[#F6F4EF] px-3 text-sm font-semibold outline-none transition focus:border-[#1E3A2F] focus:ring-4 focus:ring-[#1E3A2F]/10 dark:border-white/10 dark:bg-[#10130F]"
+                  placeholder="Your name"
                 />
-                <label htmlFor="name" className="absolute left-4 top-2 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-xs peer-focus:font-semibold peer-focus:text-indigo-500 pointer-events-none">
-                  Full Name
-                </label>
-              </div>
+              </label>
             )}
 
-            <div className="relative input-focus group">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#5C5851]">Email</span>
               <input
                 type="email"
                 name="email"
-                id="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="peer w-full px-4 pt-6 pb-2 rounded-xl border border-slate-300/60 dark:border-white/10 bg-white/50 dark:bg-[#1a1a1a]/50 text-slate-900 dark:text-white outline-none transition-all placeholder-transparent"
-                placeholder="you@email.com"
+                className="mt-1.5 h-10 w-full rounded-lg border border-[#E2DDD4] bg-[#F6F4EF] px-3 text-sm font-semibold outline-none transition focus:border-[#1E3A2F] focus:ring-4 focus:ring-[#1E3A2F]/10 dark:border-white/10 dark:bg-[#10130F]"
+                placeholder="you@example.com"
               />
-              <label htmlFor="email" className="absolute left-4 top-2 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-xs peer-focus:font-semibold peer-focus:text-indigo-500 pointer-events-none">
-                Email Address
-              </label>
-            </div>
+            </label>
 
-            <div className="relative input-focus group">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#5C5851]">Password</span>
               <input
                 type="password"
                 name="password"
-                id="password"
                 value={formData.password}
                 onChange={handleChange}
                 required
                 minLength={6}
-                className="peer w-full px-4 pt-6 pb-2 rounded-xl border border-slate-300/60 dark:border-white/10 bg-white/50 dark:bg-[#1a1a1a]/50 text-slate-900 dark:text-white outline-none transition-all placeholder-transparent"
-                placeholder="••••••••"
+                className="mt-1.5 h-10 w-full rounded-lg border border-[#E2DDD4] bg-[#F6F4EF] px-3 text-sm font-semibold outline-none transition focus:border-[#1E3A2F] focus:ring-4 focus:ring-[#1E3A2F]/10 dark:border-white/10 dark:bg-[#10130F]"
+                placeholder="At least 6 characters"
               />
-              <label htmlFor="password" className="absolute left-4 top-2 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:font-medium peer-focus:top-2 peer-focus:text-xs peer-focus:font-semibold peer-focus:text-indigo-500 pointer-events-none">
-                Password
-              </label>
-            </div>
+            </label>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 mt-2 bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 btn-press disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden group"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1E3A2F] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(30,58,47,0.18)] transition hover:bg-[#2D5C42] disabled:opacity-60 dark:bg-[#F0C565] dark:text-[#10130F] dark:hover:bg-[#FFD98A]"
             >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Processing...</span>
-                </div>
-              ) : (
-                <>
-                  <span className="relative z-10">{isLogin ? 'Welcome Back →' : isSeller ? 'Become a Creator 🚀' : 'Start Learning 🚀'}</span>
-                  <div className="absolute inset-0 h-full w-full bg-linear-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                </>
-              )}
+              {loading ? <Loader2 className="animate-spin" size={18} /> : null}
+              {isLogin ? 'Enter my learning desk' : isSeller ? 'Open Creator Studio' : 'Start learning'}
+              {!loading && <ArrowRight size={17} />}
             </button>
           </form>
-        </div>
+        </section>
       </div>
     </div>
   );

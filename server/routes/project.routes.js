@@ -14,6 +14,7 @@ import {
   enhanceSummaryContent,
   enhanceMilestonesContent,
   getMilestoneQuiz,
+  rateProject,
 } from "../controllers/project.controller.js";
 import { protect } from "../middlewares/auth.middleware.js";
 
@@ -35,6 +36,7 @@ router.post("/enhance-milestones", protect, enhanceMilestonesContent);
 router.put("/:id", protect, updateProject);
 router.delete("/:id", protect, deleteProject);
 router.post("/:id/submit-review", protect, submitForReview);
+router.post("/:id/rate", protect, rateProject);
 router.get("/:id/download", protect, downloadProject);
 
 export default router;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react';
 import { projectsExpressApi } from '../../api/express';
 
 export default function StepReview({ projectData, setProjectData, aiGenerated, setAiGenerated, readme }) {
@@ -10,136 +10,152 @@ export default function StepReview({ projectData, setProjectData, aiGenerated, s
   const handleEnhanceSummary = async () => {
     setEnhancingSummary(true);
     try {
-      const res = await projectsExpressApi.enhanceSummary(aiGenerated.summary, readme);
-      if (res.success && res.enhanced_summary) {
-        setAiGenerated(prev => ({ ...prev, summary: res.enhanced_summary }));
+      const response = await projectsExpressApi.enhanceSummary(aiGenerated.summary, readme);
+      if (response.success && response.enhanced_summary) {
+        setAiGenerated((prev) => ({ ...prev, summary: response.enhanced_summary }));
       }
-    } catch (e) { console.error(e); }
-    finally { setEnhancingSummary(false); }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setEnhancingSummary(false);
+    }
   };
 
   const handleEnhanceMilestones = async () => {
     setEnhancingMilestones(true);
     try {
-      const res = await projectsExpressApi.enhanceMilestones(aiGenerated.milestones, readme);
-      if (res.success && res.enhanced_milestones) {
-        setAiGenerated(prev => ({ ...prev, milestones: res.enhanced_milestones }));
+      const response = await projectsExpressApi.enhanceMilestones(aiGenerated.milestones, readme);
+      if (response.success && response.enhanced_milestones) {
+        setAiGenerated((prev) => ({ ...prev, milestones: response.enhanced_milestones }));
       }
-    } catch (e) { console.error(e); }
-    finally { setEnhancingMilestones(false); }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setEnhancingMilestones(false);
+    }
   };
 
-  const updateMilestone = (idx, field, value) => {
+  const updateMilestone = (index, field, value) => {
     const updated = [...aiGenerated.milestones];
-    updated[idx] = { ...updated[idx], [field]: value };
-    setAiGenerated(prev => ({ ...prev, milestones: updated }));
+    updated[index] = { ...updated[index], [field]: value };
+    setAiGenerated((prev) => ({ ...prev, milestones: updated }));
   };
 
-  const updateStep = (mIdx, sIdx, field, value) => {
+  const updateStep = (milestoneIndex, stepIndex, field, value) => {
     const updated = [...aiGenerated.milestones];
-    const steps = [...(updated[mIdx].steps || [])];
-    steps[sIdx] = { ...steps[sIdx], [field]: value };
-    updated[mIdx] = { ...updated[mIdx], steps };
-    setAiGenerated(prev => ({ ...prev, milestones: updated }));
+    const steps = [...(updated[milestoneIndex].steps || [])];
+    steps[stepIndex] = { ...steps[stepIndex], [field]: value };
+    updated[milestoneIndex] = { ...updated[milestoneIndex], steps };
+    setAiGenerated((prev) => ({ ...prev, milestones: updated }));
   };
 
-  const EnhanceBtn = ({ loading, onClick, label }) => (
-    <button onClick={onClick} disabled={loading}
-      className="px-3 py-1.5 bg-linear-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md hover:scale-[1.02] disabled:hover:scale-100">
+  const EnhanceButton = ({ loading, onClick, label }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="flex items-center gap-1.5 rounded-lg bg-[#FEF3DC] px-3 py-1.5 text-xs font-bold text-[#92580A] shadow-sm transition-all hover:bg-[#1E3A2F] hover:text-white disabled:opacity-40"
+    >
       {loading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
       {loading ? 'Enhancing...' : label}
     </button>
   );
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="animate-fadeIn space-y-8 text-[#1C1A17]">
       <div>
-        <h2 className="text-2xl font-bold mb-1">Review AI-Generated Content</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Edit and enhance the generated content below.</p>
+        <h2 className="font-headline text-3xl font-semibold">Review AI content</h2>
+        <p className="mt-1 text-sm font-semibold text-[#5C5851]">Edit and enhance the generated roadmap below.</p>
       </div>
 
-      {/* Project Title */}
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Project Title</label>
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Course title</label>
         <input
           value={projectData.title}
-          onChange={(e) => setProjectData(prev => ({ ...prev, title: e.target.value }))}
-          className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-semibold transition-all"
+          onChange={(event) => setProjectData((prev) => ({ ...prev, title: event.target.value }))}
+          className="w-full rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-4 font-headline text-xl font-semibold focus:border-[#1E3A2F] focus:outline-none"
         />
       </div>
 
-      {/* Summary */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Summary</label>
-          <EnhanceBtn loading={enhancingSummary} onClick={handleEnhanceSummary} label="✨ Enhance" />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Marketplace summary</label>
+          <EnhanceButton loading={enhancingSummary} onClick={handleEnhanceSummary} label="Rewrite with AI" />
         </div>
         <textarea
           value={aiGenerated.summary}
-          onChange={(e) => setAiGenerated(prev => ({ ...prev, summary: e.target.value }))}
+          onChange={(event) => setAiGenerated((prev) => ({ ...prev, summary: event.target.value }))}
           rows={3}
-          className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition-all"
+          className="w-full resize-none rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-4 text-sm font-medium leading-6 focus:border-[#1E3A2F] focus:outline-none"
         />
       </div>
 
-      {/* Milestones */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Milestones ({aiGenerated.milestones.length})
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">
+            Learning roadmap ({aiGenerated.milestones.length} milestones)
           </label>
-          <EnhanceBtn loading={enhancingMilestones} onClick={handleEnhanceMilestones} label="✨ Enhance All" />
+          <EnhanceButton loading={enhancingMilestones} onClick={handleEnhanceMilestones} label="Enhance all steps" />
         </div>
+
         <div className="space-y-3">
-          {aiGenerated.milestones.map((m, idx) => (
-            <div key={idx} className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden bg-slate-50/50 dark:bg-white/2">
-              {/* Milestone Header */}
+          {aiGenerated.milestones.map((milestone, index) => (
+            <div key={index} className="overflow-hidden rounded-2xl border border-[#E2DDD4] bg-white">
               <button
-                onClick={() => setExpandedMilestone(expandedMilestone === idx ? -1 : idx)}
-                className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                type="button"
+                onClick={() => setExpandedMilestone(expandedMilestone === index ? -1 : index)}
+                className="flex w-full items-center gap-4 bg-[#FBF9F6] p-4 transition-colors hover:bg-[#F0EDE6]"
               >
-                <span className="w-8 h-8 bg-linear-to-br from-indigo-500 to-purple-500 text-white rounded-lg flex items-center justify-center text-xs font-bold shrink-0 shadow-md shadow-indigo-500/20">
-                  {idx + 1}
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1E3A2F] text-xs font-bold text-white shadow-lg shadow-[#1E3A2F]/20">
+                  {index + 1}
                 </span>
                 <input
-                  value={m.title}
-                  onChange={(e) => { e.stopPropagation(); updateMilestone(idx, 'title', e.target.value); }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 bg-transparent font-semibold focus:outline-none text-sm"
+                  value={milestone.title || ''}
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    updateMilestone(index, 'title', event.target.value);
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex-1 truncate bg-transparent font-headline text-lg font-semibold focus:outline-none"
                 />
-                {expandedMilestone === idx ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                {expandedMilestone === index ? <ChevronUp size={18} className="text-[#5C5851]" /> : <ChevronDown size={18} className="text-[#5C5851]" />}
               </button>
 
-              {expandedMilestone === idx && (
-                <div className="px-4 pb-4 space-y-3">
-                  <input
-                    value={m.description || ''}
-                    onChange={(e) => updateMilestone(idx, 'description', e.target.value)}
-                    placeholder="Milestone description..."
-                    className="w-full bg-transparent text-sm text-slate-500 dark:text-slate-400 focus:outline-none pl-11"
-                  />
-                  {/* Steps as individual boxes */}
-                  {m.steps && m.steps.length > 0 && (
-                    <div className="space-y-2 pl-11">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Steps</span>
-                      {m.steps.map((step, sIdx) => (
-                        <div key={sIdx} className="p-3 bg-white dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 bg-indigo-500/10 text-indigo-500 rounded flex items-center justify-center text-[10px] font-bold shrink-0">
-                              {sIdx + 1}
+              {expandedMilestone === index && (
+                <div className="space-y-4 p-6 pt-2">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#9B9589]">Objective</label>
+                    <textarea
+                      value={milestone.description || ''}
+                      onChange={(event) => updateMilestone(index, 'description', event.target.value)}
+                      placeholder="What will the learner achieve here?"
+                      rows={2}
+                      className="w-full resize-none bg-transparent pl-2 text-sm font-medium leading-6 text-[#5C5851] focus:outline-none"
+                    />
+                  </div>
+
+                  {milestone.steps && milestone.steps.length > 0 && (
+                    <div className="space-y-3 border-t border-[#E2DDD4] pt-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#D4840A]">Action steps</p>
+                      {milestone.steps.map((step, stepIndex) => (
+                        <div key={stepIndex} className="space-y-3 rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white text-[10px] font-bold text-[#1E3A2F] shadow-sm">
+                              {stepIndex + 1}
                             </span>
                             <input
                               value={step.title || ''}
-                              onChange={(e) => updateStep(idx, sIdx, 'title', e.target.value)}
+                              onChange={(event) => updateStep(index, stepIndex, 'title', event.target.value)}
                               placeholder="Step title"
-                              className="flex-1 bg-transparent text-sm font-medium focus:outline-none"
+                              className="flex-1 bg-transparent text-sm font-bold focus:outline-none"
                             />
                           </div>
-                          <input
+                          <textarea
                             value={step.description || ''}
-                            onChange={(e) => updateStep(idx, sIdx, 'description', e.target.value)}
-                            placeholder="Step description..."
-                            className="w-full bg-transparent text-xs text-slate-500 dark:text-slate-400 focus:outline-none pl-7"
+                            onChange={(event) => updateStep(index, stepIndex, 'description', event.target.value)}
+                            placeholder="Briefly explain the task..."
+                            rows={2}
+                            className="w-full resize-none bg-transparent pl-8 text-xs font-medium leading-5 text-[#5C5851] focus:outline-none"
                           />
                         </div>
                       ))}

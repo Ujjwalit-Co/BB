@@ -1,20 +1,19 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
-import useLabStore from '../../store/useLabStore';
 
 export default function MilestoneCompleteModal({ milestone, onProceed }) {
   if (!milestone) return null;
 
   return (
-    <motion.div 
+    <Motion.div 
       className="lab-modal-overlay"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       style={{ backdropFilter: 'none', background: 'rgba(0,0,0,0.4)' }}
     >
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: -10 }}
@@ -58,7 +57,7 @@ export default function MilestoneCompleteModal({ milestone, onProceed }) {
         >
           Move Forward <ArrowRight size={16} />
         </button>
-      </motion.div>
-    </motion.div>
+      </Motion.div>
+    </Motion.div>
   );
 }

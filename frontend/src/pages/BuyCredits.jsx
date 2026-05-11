@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Check, Zap, Shield, CreditCard, Sparkles, Layout } from 'lucide-react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Check, CreditCard, Shield, Sparkles, Zap } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useLabStore from '../store/useLabStore';
-import { useNavigate } from 'react-router-dom';
 
 const CREDIT_PACKS = [
   {
@@ -13,34 +11,31 @@ const CREDIT_PACKS = [
     name: 'Starter Spark',
     credits: 100,
     price: 100,
-    description: 'Perfect for small fixes and quick AI help.',
-    features: ['100 AI Credits', 'Basic AI Guidance', '7-day validity'],
-    color: 'blue'
+    note: 'For quick hints, bug checks, and small milestone pushes.',
+    features: ['100 AI messages worth of help', 'Great for free milestones', 'Instant balance update'],
   },
   {
     id: 'pack2',
-    name: 'Pro Pulse',
+    name: 'Builder Boost',
     credits: 500,
     price: 450,
-    description: 'The sweet spot for active learners and builders.',
-    features: ['500 AI Credits', 'Priority AI Analysis', '30-day validity', '10% Discount included'],
-    color: 'purple',
-    popular: true
+    note: 'For active learners working through multiple build courses.',
+    features: ['500 AI credits', 'Best for weekly building', 'Includes bonus value'],
+    popular: true,
   },
   {
     id: 'pack3',
-    name: 'Expert Energy',
+    name: 'Project Sprint',
     credits: 1200,
     price: 1000,
-    description: 'Unleash full potential for complex projects.',
-    features: ['1200 AI Credits', 'Advanced Debugging', 'Unlimited validity', 'Best Value (17% Off)'],
-    color: 'amber'
-  }
+    note: 'For deep debugging, advanced projects, and serious portfolio work.',
+    features: ['1200 AI credits', 'Best value pack', 'Useful across all courses'],
+  },
 ];
 
 export default function BuyCredits() {
-  const { user, token, getProfile } = useAuthStore();
-  const { credits, setCredits } = useLabStore();
+  const { user, getProfile } = useAuthStore();
+  const { setCredits } = useLabStore();
   const [loading, setLoading] = useState(null);
   const navigate = useNavigate();
 
@@ -54,191 +49,141 @@ export default function BuyCredits() {
     setLoading(packId);
     try {
       const { creditsApi } = await import('../api/express');
-      
-      // 1. Create order on backend
       const responseData = await creditsApi.createCreditOrder(packId);
       const orderData = responseData.order || responseData;
-      
-      // 2. Open Razorpay Checkout widget
+      const pack = CREDIT_PACKS.find((item) => item.id === packId);
+
       const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-          amount: orderData.amount,
-          currency: orderData.currency,
-          name: "BrainBazaar",
-          description: `Purchase ${CREDIT_PACKS.find(p => p.id === packId)?.name}`,
-          order_id: orderData.id,
-          handler: async function (response) {
-              try {
-                  const verifyData = {
-                      paymentId: response.razorpay_payment_id,
-                      orderId: response.razorpay_order_id,
-                      signature: response.razorpay_signature,
-                      packId: packId
-                  };
-                  
-                  const result = await creditsApi.verifyCreditPayment(verifyData);
-                  
-                  if (result && result.success) {
-                    toast.success(result.message || `Successfully added credits!`);
-                    // Update local store
-                    setCredits(result.balance);
-                    // Refresh full profile
-                    await getProfile();
-                    
-                    // Navigate back to lab if we came from there
-                    if (sessionStorage.getItem('pendingProjectId')) {
-                      navigate('/lab');
-                    }
-                  }
-              } catch (verifyError) {
-                  console.error("Payment Verification Failed", verifyError);
-                  toast.error("Payment verification failed. Please contact support.");
-              }
-          },
-          prefill: {
-              name: user?.name || "Guest User",
-              email: user?.email || "guest@example.com",
-              contact: "9999999999"
-          },
-          theme: {
-              color: "#3b82f6" // blue-500
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'BrainBazaar',
+        description: `Purchase ${pack?.name}`,
+        order_id: orderData.id,
+        handler: async function (response) {
+          try {
+            const result = await creditsApi.verifyCreditPayment({
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              packId,
+            });
+
+            if (result?.success) {
+              toast.success(result.message || 'Credits added');
+              setCredits(result.balance);
+              await getProfile();
+              if (sessionStorage.getItem('pendingProjectId')) window.location.href = '/lab';
+            }
+          } catch (verifyError) {
+            console.error('Payment Verification Failed', verifyError);
+            toast.error('Payment verification failed. Please contact support.');
           }
+        },
+        prefill: {
+          name: user?.name || 'BrainBazaar learner',
+          email: user?.email || 'learner@example.com',
+        },
+        theme: { color: '#1E3A2F' },
       };
-      
+
       const rzp = new window.Razorpay(options);
-      
-      rzp.on("payment.failed", function (response) {
-          console.error("Payment Failed", response.error);
-          toast.error(response.error.description);
-      });
-
+      rzp.on('payment.failed', (response) => toast.error(response.error.description));
       rzp.open();
-
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || error.message || "Failed to initiate purchase");
+      toast.error(error.response?.data?.message || error.message || 'Failed to initiate purchase');
     } finally {
       setLoading(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] py-20 px-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-sm mb-6"
-          >
-            <Sparkles size={16} />
-            <span>AI LAB CREDITS</span>
-          </motion.div>
-          
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-5xl font-extrabold text-slate-900 dark:text-white mb-6"
-          >
-            Power up your <span className="text-blue-600">learning journey</span>
-          </motion.h1>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto"
-          >
-            Get instant access to AI-powered debugging, code analysis, and interactive guidance within the BrainBazaar Labs.
-          </motion.p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {CREDIT_PACKS.map((pack, idx) => (
-            <motion.div
-              key={pack.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + idx * 0.1 }}
-              className={`relative group rounded-3xl p-8 bg-white dark:bg-[#111] border ${
-                pack.popular ? 'border-blue-500 shadow-2xl shadow-blue-500/20' : 'border-slate-200 dark:border-white/5'
-              } transition-all duration-300 hover:scale-[1.02]`}
-            >
-              {pack.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">
-                  Best Value
+    <div className="min-h-screen bg-[#F6F4EF] px-4 py-10 text-[#1C1A17]">
+      <div className="mx-auto max-w-7xl">
+        <section className="grid gap-8 rounded-3xl border border-[#E2DDD4] bg-white p-6 shadow-[0_20px_60px_rgba(28,26,23,0.08)] md:p-8 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-2xl bg-[#1E3A2F] p-8 text-white">
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-white/70">
+              <Zap size={14} fill="currentColor" />
+              AI credits
+            </p>
+            <h1 className="mt-5 font-headline text-4xl font-semibold leading-tight">
+              Keep your build momentum when you get stuck.
+            </h1>
+            <p className="mt-5 text-lg leading-8 text-white/70">
+              Credits power extra AI help after your included milestone messages run out.
+              Use them for hints, debugging, explanations, and sandbox questions.
+            </p>
+            <div className="mt-8 grid gap-3">
+              {['1 user message = 1 tracked AI request', 'Credits work across build courses', 'Balance updates after payment'].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-xl bg-white/8 p-3">
+                  <Check size={17} className="text-[#2A9D6F]" />
+                  <span className="text-sm font-bold">{item}</span>
                 </div>
-              )}
+              ))}
+            </div>
+          </div>
 
-              <div className={`w-14 h-14 rounded-2xl bg-${pack.color}-500/10 flex items-center justify-center mb-6`}>
-                <Zap className={`text-${pack.color}-500`} size={28} fill="currentColor" />
-              </div>
-
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{pack.name}</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 h-10">{pack.description}</p>
-
-              <div className="flex items-baseline gap-1 mb-8">
-                <span className="text-4xl font-extrabold text-slate-900 dark:text-white">₹{pack.price}</span>
-                <span className="text-slate-500 text-sm">/ {pack.credits} credits</span>
-              </div>
-
-              <div className="space-y-4 mb-10">
-                {pack.features.map(feat => (
-                  <div key={feat} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-                      <Check className="text-emerald-500" size={12} strokeWidth={3} />
-                    </div>
-                    {feat}
-                  </div>
-                ))}
-              </div>
-
-              <button
-                disabled={loading === pack.id}
-                onClick={() => handlePurchase(pack.id)}
-                className={`w-full py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
-                  pack.popular 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/25'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10'
-                } disabled:opacity-50`}
+          <div className="grid gap-4 md:grid-cols-3">
+            {CREDIT_PACKS.map((pack) => (
+              <div
+                key={pack.id}
+                className={`relative flex flex-col rounded-2xl border p-5 transition hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(28,26,23,0.10)] ${
+                  pack.popular ? 'border-[#D4840A] bg-[#FEF3DC]' : 'border-[#E2DDD4] bg-[#F6F4EF]'
+                }`}
               >
-                {loading === pack.id ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <CreditCard size={18} />
-                    Purchase Now
-                  </>
+                {pack.popular && (
+                  <span className="absolute -top-3 left-5 rounded-full bg-[#D4840A] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#1C1A17]">
+                    Popular
+                  </span>
                 )}
-              </button>
-            </motion.div>
-          ))}
-        </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[#1E3A2F]">
+                  <Sparkles size={22} />
+                </div>
+                <h3 className="mt-5 font-headline text-2xl font-semibold">{pack.name}</h3>
+                <p className="mt-2 min-h-20 text-sm leading-6 text-[#5C5851]">{pack.note}</p>
 
-        <div className="mt-20 flex flex-col md:flex-row items-center justify-center gap-12 text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-white/5 pt-12">
-           <div className="flex items-center gap-3">
-              <Shield className="text-blue-500" size={24} />
-              <div className="text-left">
-                <div className="text-slate-900 dark:text-white font-bold text-sm">Secure Payment</div>
-                <div className="text-xs">256-bit SSL encrypted</div>
+                <div className="mt-5">
+                  <p className="font-headline text-3xl font-semibold text-[#1E3A2F]">Rs {pack.price}</p>
+                  <p className="text-sm font-bold text-[#5C5851]">{pack.credits} credits</p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {pack.features.map((feature) => (
+                    <p key={feature} className="flex items-start gap-2 text-sm font-semibold text-[#5C5851]">
+                      <Check size={15} className="mt-0.5 text-[#2A9D6F]" /> {feature}
+                    </p>
+                  ))}
+                </div>
+
+                <button
+                  disabled={loading === pack.id}
+                  onClick={() => handlePurchase(pack.id)}
+                  className={`mt-auto flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition disabled:opacity-50 ${
+                    pack.popular ? 'bg-[#D4840A] text-[#1C1A17] hover:brightness-105' : 'bg-[#1E3A2F] text-white hover:bg-[#2D5C42]'
+                  }`}
+                >
+                  {loading === pack.id ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <CreditCard size={17} />}
+                  Buy credits
+                </button>
               </div>
-           </div>
-           <div className="flex items-center gap-3">
-              <Sparkles className="text-blue-500" size={24} />
-              <div className="text-left">
-                <div className="text-slate-900 dark:text-white font-bold text-sm">Instant Delivery</div>
-                <div className="text-xs">Credits added automatically</div>
-              </div>
-           </div>
-           <div className="flex items-center gap-3">
-              <Layout className="text-blue-500" size={24} />
-              <div className="text-left">
-                <div className="text-slate-900 dark:text-white font-bold text-sm">Lab Integration</div>
-                <div className="text-xs">Syncs with your projects</div>
-              </div>
-           </div>
-        </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          {[
+            { icon: Shield, title: 'Secure payment', copy: 'Razorpay handles payment details securely.' },
+            { icon: Sparkles, title: 'Instant delivery', copy: 'Credits are added to your account after verification.' },
+            { icon: Zap, title: 'Lab-ready', copy: 'Use credits for project help and sandbox questions.' },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-[#E2DDD4] bg-white p-5">
+              <item.icon className="text-[#1E3A2F]" size={22} />
+              <h3 className="mt-4 font-bold">{item.title}</h3>
+              <p className="mt-1 text-sm leading-6 text-[#5C5851]">{item.copy}</p>
+            </div>
+          ))}
+        </section>
       </div>
     </div>
   );

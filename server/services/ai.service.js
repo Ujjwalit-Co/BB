@@ -3,7 +3,7 @@
  * Handles milestone generation, summaries, quizzes, and complexity analysis
  */
 
-const FASTAPI_URL = process.env.FASTAPI_URL || 'http://localhost:8080';
+const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
 console.log('[ai.service] Using FastAPI URL:', FASTAPI_URL);
 
 /**
@@ -111,25 +111,21 @@ export const generateQuizzesForProjectBg = async (projectId) => {
                   let correctIdx = q.correctAnswer ?? q.correct_answer;
                   let finalIdx = 0;
                   
-                  // Ensure options exist and are strings
                   const options = (q.options || []).map(opt => String(opt).trim());
                   
                   if (typeof correctIdx === 'number') {
                     finalIdx = correctIdx;
                   } else if (typeof correctIdx === 'string') {
                     const trimmedCorrect = correctIdx.trim();
-                    // 1. Try exact match
                     const exactIdx = options.indexOf(trimmedCorrect);
                     if (exactIdx !== -1) {
                       finalIdx = exactIdx;
                     } else {
-                      // 2. Try case-insensitive match
                       const lowerCorrect = trimmedCorrect.toLowerCase();
                       const caseInsensitiveIdx = options.findIndex(opt => opt.toLowerCase() === lowerCorrect);
                       if (caseInsensitiveIdx !== -1) {
                         finalIdx = caseInsensitiveIdx;
                       } else {
-                        // 3. Try parsing as a number index
                         const parsed = parseInt(trimmedCorrect);
                         if (!isNaN(parsed) && parsed >= 0 && parsed < options.length) {
                           finalIdx = parsed;
@@ -145,12 +141,17 @@ export const generateQuizzesForProjectBg = async (projectId) => {
                     explanation: q.explanation || ""
                   };
                 });
-                ms.quiz = { questions: normalizedQuestions };
+
+                // Atomic update to this specific milestone to avoid version conflicts
+                await Project.updateOne(
+                  { _id: projectId, "milestones.number": ms.number },
+                  { $set: { "milestones.$.quiz": { questions: normalizedQuestions } } }
+                );
+                console.log(`[ai.service] Successfully saved quiz for milestone ${ms.number}`);
             }
         }
     }
     
-    await project.save();
     console.log(`[ai.service] Completed background quiz generation for project ${projectId}`);
   } catch (error) {
     console.error('AI Service - generateQuizzesForProjectBg error:', error.message);

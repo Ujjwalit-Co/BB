@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { User, Calendar, MapPin, Mail, ChevronRight, PackageOpen, Sparkles, ShoppingCart } from 'lucide-react';
-import usePaymentStore from '../store/usePaymentStore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  BookOpen,
+  Calendar,
+  ChevronRight,
+  Code2,
+  GraduationCap,
+  Loader2,
+  PackageOpen,
+  Sparkles,
+  UserRound,
+} from 'lucide-react';
+import ProjectCourseCard from '../components/ProjectCourseCard';
 
 export default function SellerProfile() {
   const { sellerId } = useParams();
   const navigate = useNavigate();
-  const { setCheckoutModalOpen } = usePaymentStore();
   const [seller, setSeller] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,39 +31,58 @@ export default function SellerProfile() {
 
         if (data.success) {
           setSeller(data.seller);
-          setProjects(data.projects);
+          setProjects(data.projects || []);
         } else {
-          setError(data.message || 'Failed to load seller profile');
+          setError(data.message || 'Failed to load creator profile');
         }
       } catch (err) {
-        console.error("Error fetching seller profile:", err);
-        setError('Network error while loading profile');
+        console.error('Error fetching seller profile:', err);
+        setError('Network error while loading creator profile');
       } finally {
         setLoading(false);
       }
     };
 
-    if (sellerId) {
-      fetchSellerProfile();
-    }
+    if (sellerId) fetchSellerProfile();
   }, [sellerId]);
+
+  const joinedAt = seller?.createdAt
+    ? new Date(seller.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    : 'Recently';
+
+  const techStack = useMemo(() => {
+    const tags = new Set();
+    projects.forEach((project) => {
+      const stack = project.techStack || project.technologies || [];
+      stack.forEach((tag) => {
+        if (tag) tags.add(tag);
+      });
+    });
+    return Array.from(tags).slice(0, 8);
+  }, [projects]);
+
+  const avatarUrl = typeof seller?.avatar === 'string' ? seller.avatar : seller?.avatar?.secure_url;
 
   if (loading) {
     return (
-      <div className="pt-24 min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0A0A0B]">
-        <div className="animate-spin w-8 h-8 rounded-full border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="flex min-h-[70vh] items-center justify-center bg-[#F6F4EF] text-[#1E3A2F] dark:bg-[#10130F] dark:text-[#7FC79C]">
+        <Loader2 className="animate-spin" size={40} />
       </div>
     );
   }
 
   if (error || !seller) {
     return (
-      <div className="pt-24 min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-[#0A0A0B]">
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 max-w-md text-center">
-          <h2 className="text-lg font-bold mb-2">Profile Not Found</h2>
-          <p className="text-sm opacity-80">{error}</p>
-          <Link to="/" className="mt-4 inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-500">
-            Return Home
+      <div className="flex min-h-[70vh] items-center justify-center bg-[#F6F4EF] px-4 dark:bg-[#10130F]">
+        <div className="max-w-md rounded-2xl border border-[#E2DDD4] bg-white p-8 text-center text-[#1C1A17] shadow-[0_18px_50px_rgba(28,26,23,0.08)] dark:border-white/10 dark:bg-[#171B16] dark:text-[#F7F2E8]">
+          <UserRound className="mx-auto text-[#C0392B]" size={42} />
+          <h1 className="mt-4 font-headline text-3xl font-semibold">Creator not found</h1>
+          <p className="mt-2 text-sm leading-6 text-[#5C5851] dark:text-[#B8C2B1]">{error}</p>
+          <Link
+            to="/catalog"
+            className="mt-6 inline-flex rounded-lg bg-[#1E3A2F] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#2D5C42]"
+          >
+            Browse build courses
           </Link>
         </div>
       </div>
@@ -62,154 +90,120 @@ export default function SellerProfile() {
   }
 
   return (
-    <div className="pt-24 min-h-screen bg-gray-50 dark:bg-[#0A0A0B] pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Breadcrumb */}
-        <nav className="flex text-sm text-gray-500 dark:text-gray-400 font-medium mb-8">
-          <Link to="/" className="hover:text-gray-900 dark:hover:text-white transition-colors">Home</Link>
-          <ChevronRight size={16} className="mx-2 opacity-50" />
-          <span>Creators</span>
-          <ChevronRight size={16} className="mx-2 opacity-50" />
-          <span className="text-gray-900 dark:text-gray-200">{seller.name}</span>
+    <div className="min-h-screen bg-[#F6F4EF] px-4 py-8 text-[#1C1A17] sm:px-6 lg:px-8 dark:bg-[#10130F] dark:text-[#F7F2E8]">
+      <div className="mx-auto max-w-7xl">
+        <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#5C5851] dark:text-[#B8C2B1]">
+          <Link to="/" className="transition hover:text-[#1E3A2F] dark:hover:text-[#DDEBDD]">Home</Link>
+          <ChevronRight size={15} />
+          <Link to="/catalog" className="transition hover:text-[#1E3A2F] dark:hover:text-[#DDEBDD]">Marketplace</Link>
+          <ChevronRight size={15} />
+          <span className="text-[#1C1A17] dark:text-[#F7F2E8]">{seller.name}</span>
         </nav>
 
-        {/* Profile Header */}
-        <div className="bg-white dark:bg-[#121214] rounded-2xl border border-gray-200 dark:border-gray-800/60 p-8 mb-12 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/3"></div>
-          
-          <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
-            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-gray-50 dark:border-[#1A1A1E] shadow-xl shrink-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              {seller.avatar ? (
-                <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
-              ) : (
-                <User size={48} className="text-gray-400" />
-              )}
-            </div>
-            
-            <div className="flex-1 space-y-4">
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
-                  {seller.name}
-                </h1>
-                {seller.bio && (
-                  <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm sm:text-base max-w-2xl leading-relaxed">
-                    {seller.bio}
+        <section className="overflow-hidden rounded-2xl border border-[#E2DDD4] bg-white shadow-[0_22px_60px_rgba(28,26,23,0.08)] dark:border-white/10 dark:bg-[#171B16]">
+          <div className="grid lg:grid-cols-[1fr_360px]">
+            <div className="p-6 sm:p-8 lg:p-10">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#E2DDD4] bg-[#F6F4EF] px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#5C5851] dark:border-white/10 dark:bg-white/5 dark:text-[#B8C2B1]">
+                <GraduationCap size={14} />
+                Student creator
+              </span>
+
+              <div className="mt-8 flex flex-col gap-5 sm:flex-row sm:items-center">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E2DDD4] bg-[#F0EDE6] dark:border-white/10 dark:bg-white/5">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={seller.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <UserRound size={42} className="text-[#1E3A2F] dark:text-[#7FC79C]" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h1 className="font-headline text-4xl font-semibold leading-tight sm:text-5xl">{seller.name}</h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5C5851] dark:text-[#B8C2B1]">
+                    {seller.bio || 'A BrainBazaar creator turning real student-built projects into clear milestone-led learning journeys.'}
                   </p>
+                </div>
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#E8F2EC] px-3 py-1.5 text-xs font-bold text-[#1E3A2F] dark:bg-[#223426] dark:text-[#DDEBDD]">
+                  <Calendar size={14} />
+                  Teaching since {joinedAt}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#FEF3DC] px-3 py-1.5 text-xs font-bold text-[#92580A] dark:bg-[#3A2A12] dark:text-[#F0C565]">
+                  <BookOpen size={14} />
+                  {projects.length} project {projects.length === 1 ? 'course' : 'courses'}
+                </span>
+                {techStack.length > 0 && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#F0EDE6] px-3 py-1.5 text-xs font-bold text-[#5C5851] dark:bg-white/5 dark:text-[#B8C2B1]">
+                    <Code2 size={14} />
+                    {techStack.slice(0, 3).join(' / ')}
+                  </span>
                 )}
               </div>
-              
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                <div className="flex items-center gap-1.5">
-                  <PackageOpen size={16} className="text-indigo-500" />
-                  <span>{projects.length} {projects.length === 1 ? 'Project' : 'Projects'}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={16} />
-                  <span>Joined {new Date(seller.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
-                </div>
-              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Projects Grid */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Portfolio
-            </h2>
+            <aside className="border-t border-[#E2DDD4] bg-[#F9F7F2] p-6 sm:p-8 lg:border-l lg:border-t-0 dark:border-white/10 dark:bg-[#121711]">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#D4840A] dark:text-[#F0C565]">Learning promise</p>
+              <h2 className="mt-3 font-headline text-3xl font-semibold leading-tight">Build first, understand deeply.</h2>
+              <p className="mt-4 text-sm font-semibold leading-7 text-[#5C5851] dark:text-[#B8C2B1]">
+                Every project course starts with a visible roadmap and a free first milestone, so learners can test the teaching style before unlocking the full build.
+              </p>
+              {techStack.length > 0 && (
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {techStack.map((tag) => (
+                    <span key={tag} className="rounded-full border border-[#E2DDD4] bg-white px-3 py-1 text-xs font-bold text-[#5C5851] dark:border-white/10 dark:bg-[#171B16] dark:text-[#B8C2B1]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#D4840A] dark:text-[#F0C565]">Creator shelf</p>
+              <h2 className="mt-2 font-headline text-3xl font-semibold">Project courses by {seller.name}</h2>
+            </div>
+            <Link
+              to="/catalog"
+              className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#E2DDD4] bg-white px-4 py-2.5 text-sm font-bold text-[#1E3A2F] transition hover:-translate-y-0.5 hover:border-[#1E3A2F] hover:bg-[#E8F2EC] dark:border-white/10 dark:bg-white/5 dark:text-[#DDEBDD] dark:hover:border-[#7FC79C] dark:hover:bg-[#223426]"
+            >
+              Explore marketplace
+              <ChevronRight size={16} />
+            </Link>
           </div>
 
           {projects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {projects.map((project) => (
-                <div
+                <ProjectCourseCard
                   key={project._id}
-                  className="glass-card rounded-[24px] overflow-hidden card-hover group cursor-pointer flex flex-col h-full relative"
-                  onClick={() => navigate(`/project/${project._id}`)}
-                >
-                  <div className="h-44 overflow-hidden relative bg-slate-100 dark:bg-slate-800/50 rounded-t-[23px]">
-                    {project.thumbnail?.secure_url ? (
-                      <img
-                        src={project.thumbnail.secure_url}
-                        alt={project.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-indigo-500/10 to-cyan-500/10">
-                        <Sparkles className="text-indigo-500/30 w-16 h-16" />
-                      </div>
-                    )}
-                    <div className="absolute top-4 right-4 bg-white/95 dark:bg-black/90 px-3 py-1.5 rounded-full text-sm font-black text-slate-900 dark:text-white backdrop-blur-md shadow-lg border border-white/20">
-                      ₹{project.price}
-                    </div>
-                    {/* Gradient Overlay */}
-                    <div className="absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-black/60 to-transparent opacity-60" />
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col font-body">
-                    <div className="flex items-center gap-2 mb-3">
-                      {project.badge && (
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${
-                          project.badge === 'diamond' ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20' :
-                          project.badge === 'gold' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
-                          'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20'
-                        }`}>
-                          {project.badge} UI
-                        </span>
-                      )}
-                      <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-black uppercase tracking-widest">
-                        {project.category || 'App'}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-bold font-headline mb-2 text-slate-900 dark:text-white line-clamp-1 group-hover:text-indigo-500 transition-colors">
-                      {project.title}
-                    </h3>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2 leading-relaxed flex-1">
-                      {project.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mb-5">
-                      {(project.techStack || []).slice(0, 2).map((tech) => (
-                        <span
-                          key={tech}
-                          className="px-2 py-1 bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 text-[10px] rounded-full font-medium"
-                        >
-                          {tech}
-                        </span>
-                      ))}
-                      {(project.techStack?.length || 0) > 2 && (
-                        <span className="px-2 py-1 bg-slate-100/80 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 text-[10px] rounded-full font-medium">
-                          +{(project.techStack.length || 3) - 2}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCheckoutModalOpen(true, project);
-                      }}
-                      className="w-full bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm shadow-indigo-500/20 btn-press mt-auto"
-                    >
-                      <ShoppingCart size={16} />
-                      <span className="text-sm">Buy Project</span>
-                    </button>
-                  </div>
-                </div>
+                  project={{ ...project, seller }}
+                  onOpen={() => navigate(`/project/${project._id}`)}
+                  actionLabel="Open course"
+                />
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#121214] border border-gray-200 dark:border-gray-800/60 shadow-sm flex flex-col items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center mb-4">
-                <PackageOpen size={24} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Projects Yet</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-                This creator hasn't published any projects to their portfolio yet. Check back later!
+            <div className="rounded-2xl border border-dashed border-[#E2DDD4] bg-white p-8 text-center dark:border-white/10 dark:bg-[#171B16]">
+              <PackageOpen className="mx-auto text-[#9B9589]" size={44} />
+              <h3 className="mt-4 font-headline text-3xl font-semibold">No courses published yet</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#5C5851] dark:text-[#B8C2B1]">
+                This creator is still preparing their first project course. Check the marketplace for more builds.
               </p>
+              <Link
+                to="/catalog"
+                className="mt-6 inline-flex items-center gap-2 rounded-lg border border-[#1E3A2F] px-5 py-3 text-sm font-bold text-[#1E3A2F] transition hover:bg-[#E8F2EC] dark:border-[#7FC79C] dark:text-[#DDEBDD] dark:hover:bg-[#223426]"
+              >
+                <Sparkles size={17} />
+                Browse marketplace
+              </Link>
             </div>
           )}
-        </div>
-
+        </section>
       </div>
     </div>
   );

@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown, Sun, Moon, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Play, Save, Check, User, Zap, LayoutDashboard, LogOut, Settings, ChevronDown, Sun, Moon, RefreshCcw, Loader2, Radio, TerminalSquare } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
 export default function LabHeader() {
   const {
     projectName, credits, smartRun, runCode, saveProject, saveFlash,
     profileMenuOpen, toggleProfileMenu, closeProfileMenu, resetOnboarding,
-    getActiveFile, activeFileId
+    getActiveFile, activeFileId, webcontainerInstance, isWebContainerLoading,
+    webcontainerStatus, webcontainerError, webcontainerPreviewUrl, isTerminalRunning
   } = useLabStore();
   
   const menuRef = useRef(null);
@@ -15,11 +16,9 @@ export default function LabHeader() {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
   });
-  const [activeFileIdSub, setActiveFileIdSub] = useState(activeFileId);
 
   // Subscribe to activeFileId changes to trigger re-renders
   useEffect(() => {
-    setActiveFileIdSub(activeFileId);
   }, [activeFileId]);
 
   // Get active file to determine run button label
@@ -58,6 +57,14 @@ export default function LabHeader() {
 
   const runButtonConfig = getRunButtonConfig();
   const RunIcon = runButtonConfig.icon;
+  const envLabel = isWebContainerLoading
+    ? 'Booting'
+    : webcontainerStatus === 'serving'
+      ? 'Serving'
+      : webcontainerInstance
+        ? 'Ready'
+        : 'Fallback';
+  const envTitle = webcontainerError || (webcontainerPreviewUrl ? `Preview server: ${webcontainerPreviewUrl}` : 'Browser preview and Pyodide are available.');
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -89,7 +96,21 @@ export default function LabHeader() {
           <span>Dashboard</span>
         </Link>
         <div className="lab-header-divider" />
-        <h1 className="lab-header-title">{projectName || 'Untitled Project'}</h1>
+        <div className="lab-header-project">
+          <h1 className="lab-header-title">{projectName || 'Untitled Project'}</h1>
+          <div className={`lab-env-pill ${webcontainerInstance ? 'ready' : 'fallback'}`} title={envTitle}>
+            {isWebContainerLoading ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : webcontainerStatus === 'serving' ? (
+              <Radio size={11} />
+            ) : webcontainerInstance ? (
+              <TerminalSquare size={11} />
+            ) : (
+              <span className="lab-env-dot" />
+            )}
+            <span>{envLabel}</span>
+          </div>
+        </div>
       </div>
 
       <div className="lab-header-right">
@@ -97,9 +118,10 @@ export default function LabHeader() {
           className="lab-btn lab-btn-run" 
           onClick={runButtonConfig.onClick}
           title={activeFile ? `Run ${activeFile.name}` : 'Run full project'}
+          disabled={isWebContainerLoading || isTerminalRunning}
         >
-          <RunIcon size={14} />
-          <span>{runButtonConfig.label}</span>
+          {isTerminalRunning ? <Loader2 size={14} className="animate-spin" /> : <RunIcon size={14} />}
+          <span>{isTerminalRunning ? 'Running' : runButtonConfig.label}</span>
         </button>
 
         <button className={`lab-btn lab-btn-secondary ${saveFlash ? 'lab-btn-saved' : ''}`} onClick={saveProject}>
@@ -160,3 +182,4 @@ export default function LabHeader() {
     </header>
   );
 }
+

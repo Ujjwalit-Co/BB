@@ -1,45 +1,54 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import usePaymentStore from '../store/usePaymentStore';
-import { ShoppingCart, Loader2, Sparkles, Search, Filter, X, ChevronDown, Zap, Code2, Trophy, Clock } from 'lucide-react';
+import { ArrowUpDown, BookOpen, CheckCircle2, Filter, Loader2, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { projectsExpressApi } from '../api/express';
 import { normalizeProject } from '../utils/normalizeProject';
+import ProjectCourseCard from '../components/ProjectCourseCard';
+
+const categories = [
+  { label: 'All builds', value: '' },
+  { label: 'Trending', value: 'trending' },
+  { label: 'Hackathon ready', value: 'hackathon' },
+  { label: 'Quick builds', value: 'last-minute' },
+];
+
+const levels = [
+  { label: 'All levels', value: '' },
+  { label: 'Starter', value: 'silver' },
+  { label: 'Portfolio', value: 'gold' },
+  { label: 'Advanced', value: 'diamond' },
+];
+
+const sorters = [
+  { label: 'Newest', value: 'newest' },
+  { label: 'Highest rated', value: 'rating' },
+  { label: 'Lowest price', value: 'price-low' },
+  { label: 'Highest price', value: 'price-high' },
+];
 
 export default function Catalog() {
   const navigate = useNavigate();
-  const { setCheckoutModalOpen } = usePaymentStore();
   const [projects, setProjects] = useState([]);
-  const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedTech, setSelectedTech] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Get unique values for filters
-  const categories = ['All', 'Trending in Market', 'Hackathon Critic Favorites', 'Last Minute Helpers'];
-  const levels = ['All', 'Silver', 'Gold', 'Diamond'];
-  const techStacks = ['All', ...new Set(projects.flatMap(p => p.techStack || []))].slice(0, 10);
+  const [sortBy, setSortBy] = useState('newest');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
         setLoading(true);
         const response = await projectsExpressApi.getAll();
-        if (response.success) {
-          // Normalize all projects for consistent field names
-          const normalized = (response.projects || []).map(normalizeProject);
-          setProjects(normalized);
-          setFilteredProjects(normalized);
-          setError('');
-        }
+        setProjects((response.projects || []).map(normalizeProject));
+        setError('');
       } catch (err) {
-        console.error("Error fetching catalog:", err);
-        setError(err.message || 'Failed to fetch catalog');
+        console.error('Error fetching catalog:', err);
+        setError(err.response?.data?.message || err.message || 'Failed to fetch catalog');
       } finally {
         setLoading(false);
       }
@@ -47,330 +56,219 @@ export default function Catalog() {
     fetchCatalog();
   }, []);
 
-  // Filter projects based on search and filters
-  useEffect(() => {
-    let result = [...projects];
+  const techStacks = useMemo(() => {
+    const values = new Set(projects.flatMap((project) => project.techStack || []));
+    return ['', ...Array.from(values).sort()];
+  }, [projects]);
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.title?.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query) ||
-        p.techStack?.some(tech => tech.toLowerCase().includes(query))
-      );
-    }
+  const filteredProjects = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const result = projects.filter((project) => {
+      const matchesSearch = !query
+        || project.title?.toLowerCase().includes(query)
+        || project.description?.toLowerCase().includes(query)
+        || project.techStack?.some((tech) => tech.toLowerCase().includes(query));
 
-    // Category filter
-    if (selectedCategory && selectedCategory !== 'All') {
-      result = result.filter(p => p.category === selectedCategory);
-    }
+      const matchesCategory = !selectedCategory || project.category === selectedCategory;
+      const matchesLevel = !selectedLevel || project.badge === selectedLevel;
+      const matchesTech = !selectedTech || project.techStack?.includes(selectedTech);
 
-    // Level filter
-    if (selectedLevel && selectedLevel !== 'All') {
-      const levelMap = { 'Silver': 'beginner', 'Gold': 'intermediate', 'Diamond': 'advanced' };
-      result = result.filter(p => p.badge === levelMap[selectedLevel]);
-    }
+      return matchesSearch && matchesCategory && matchesLevel && matchesTech;
+    });
 
-    // Tech stack filter
-    if (selectedTech && selectedTech !== 'All') {
-      result = result.filter(p => p.techStack?.includes(selectedTech));
-    }
+    return result.sort((a, b) => {
+      if (sortBy === 'rating') return Number(b.rating || 0) - Number(a.rating || 0);
+      if (sortBy === 'price-low') return Number(a.price || 0) - Number(b.price || 0);
+      if (sortBy === 'price-high') return Number(b.price || 0) - Number(a.price || 0);
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  }, [projects, searchQuery, selectedCategory, selectedLevel, selectedTech, sortBy]);
 
-    setFilteredProjects(result);
-  }, [searchQuery, selectedCategory, selectedLevel, selectedTech, projects]);
+  const hasActiveFilters = searchQuery || selectedCategory || selectedLevel || selectedTech || sortBy !== 'newest';
 
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedCategory('');
     setSelectedLevel('');
     setSelectedTech('');
+    setSortBy('newest');
+    setSearchOpen(false);
+    setFiltersOpen(false);
   };
-
-  const hasActiveFilters = searchQuery || selectedCategory || selectedLevel || selectedTech;
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-[#5d21df]" size={48} />
-          <p className="text-[#5a5665] dark:text-[#a3a3a3] font-medium animate-pulse">Loading Catalog...</p>
+      <div className="flex min-h-[70vh] items-center justify-center bg-[#F6F4EF] dark:bg-[#10130F]">
+        <div className="text-center">
+          <Loader2 className="mx-auto animate-spin text-[#1E3A2F] dark:text-[#7FC79C]" size={42} />
+          <p className="mt-4 font-semibold text-[#5C5851] dark:text-[#B8C2B1]">Loading build courses...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fc] dark:bg-[#0a0a0a] pt-8 pb-24">
-      <div className="max-w-7xl mx-auto px-6 md:px-8">
-        {/* Header Section */}
-        <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] tracking-tight mb-4">
-            Explore the Bazaar
-          </h1>
-          <p className="text-lg text-[#5a5665] dark:text-[#a3a3a3] font-light max-w-2xl">
-            Discover premium app templates, learn to build them with AI guidance, or just buy the finished code.
-          </p>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#948da2]" />
-            <input
-              type="text"
-              placeholder="Search projects by name, description, or technology..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-14 pl-14 pr-5 bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 rounded-2xl text-[#1a1c1e] dark:text-[#e5e5e5] placeholder-[#948da2] focus:outline-none focus:ring-2 focus:ring-[#5d21df] focus:border-transparent transition-all font-medium text-lg"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[#f3f4f9] dark:hover:bg-white/10 transition-colors"
-              >
-                <X size={18} className="text-[#948da2]" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Toggle & Active Filters */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                showFilters || hasActiveFilters
-                  ? 'bg-[#5d21df] text-white shadow-lg shadow-[#5d21df]/30'
-                  : 'bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 text-[#5a5665] dark:text-[#a3a3a3] hover:border-[#5d21df]'
-              }`}
-            >
-              <Filter size={16} />
-              Filters
-              <ChevronDown size={16} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-[#5d21df] bg-[#f1eefb] dark:bg-[#5d21df]/10 hover:bg-[#5d21df]/10 transition-colors"
-              >
-                <X size={16} />
-                Clear All
-              </button>
-            )}
+    <div className="min-h-screen bg-[#F6F4EF] pb-16 pt-6 text-[#1C1A17] dark:bg-[#10130F] dark:text-[#F7F2E8]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
+        <div className="grid gap-5 border-b border-[#E2DDD4] pb-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center dark:border-white/10">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-full bg-[#FEF3DC] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#92580A] dark:bg-[#3A2A12] dark:text-[#F0C565]">
+              <Sparkles size={13} />
+              Explore build courses
+            </p>
+            <h1 className="mt-3 max-w-3xl font-headline text-3xl font-semibold tracking-tight md:text-4xl">
+              Pick a real project. Learn the path behind it.
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5C5851] dark:text-[#B8C2B1]">
+              A marketplace of student-built projects turned into compact milestone courses.
+              Try the first milestone free, then unlock the full build when it clicks.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-[#5C5851] dark:text-[#B8C2B1]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2DDD4] bg-white px-3 py-1.5 dark:border-white/10 dark:bg-white/5">
+                <CheckCircle2 size={14} className="text-[#2A9D6F]" /> Milestone roadmaps
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2DDD4] bg-white px-3 py-1.5 dark:border-white/10 dark:bg-white/5">
+                <CheckCircle2 size={14} className="text-[#2A9D6F]" /> AI-guided practice
+              </span>
+            </div>
           </div>
 
-          <div className="text-sm text-[#5a5665] dark:text-[#a3a3a3]">
-            <span className="font-bold text-[#1a1c1e] dark:text-[#e5e5e5]">{filteredProjects.length}</span> projects found
-          </div>
-        </div>
-
-        {/* Expandable Filters */}
-        {showFilters && (
-          <div className="mb-8 p-6 bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 rounded-2xl shadow-xl shadow-[#5d21df]/5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Category Filter */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-[#5a5665] dark:text-[#a3a3a3] mb-2">Category</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full h-12 px-4 bg-[#f8f9fc] dark:bg-white/5 border border-[#e2e0e7] dark:border-white/10 rounded-xl text-[#1a1c1e] dark:text-[#e5e5e5] focus:outline-none focus:ring-2 focus:ring-[#5d21df] cursor-pointer"
-                >
-                  <option value="">All Categories</option>
-                  {categories.filter(c => c !== 'All').map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+          <div className="relative min-h-[168px] overflow-hidden rounded-2xl border border-[#E2DDD4] bg-[#F9F7F2] p-5 shadow-[0_14px_34px_rgba(28,26,23,0.05)] dark:border-white/10 dark:bg-[#171B16]">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-[#FEF3DC] dark:bg-[#3A2A12]" />
+            <div className="relative">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#5C5851] dark:text-[#B8C2B1]">Learner path</p>
+              <div className="mt-5 grid grid-cols-[28px_1fr] gap-x-3 gap-y-0">
+                {[
+                  { label: 'Preview', copy: 'See the roadmap before paying.' },
+                  { label: 'Try', copy: 'Start milestone one for free.' },
+                  { label: 'Unlock', copy: 'Buy when the course feels right.' },
+                ].map((step, index, list) => (
+                  <React.Fragment key={step.label}>
+                    <div className="flex flex-col items-center">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1E3A2F] text-[11px] font-extrabold text-white dark:bg-[#2F6B49] dark:text-[#F7F2E8] dark:ring-1 dark:ring-[#9DE6B8]/35">
+                      {index + 1}
+                    </span>
+                      {index < list.length - 1 && <span className="h-8 w-px bg-[#D4840A]/45 dark:bg-[#7FC79C]/45" />}
+                    </div>
+                    <div className="pb-3">
+                      <p className="text-sm font-extrabold text-[#1C1A17] dark:text-[#F7F2E8]">{step.label}</p>
+                      <p className="mt-0.5 text-xs font-semibold leading-5 text-[#4F493F] dark:text-[#D9D2C7]">{step.copy}</p>
+                    </div>
+                  </React.Fragment>
+                ))}
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Level Filter */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-[#5a5665] dark:text-[#a3a3a3] mb-2">Difficulty</label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="w-full h-12 px-4 bg-[#f8f9fc] dark:bg-white/5 border border-[#e2e0e7] dark:border-white/10 rounded-xl text-[#1a1c1e] dark:text-[#e5e5e5] focus:outline-none focus:ring-2 focus:ring-[#5d21df] cursor-pointer"
+        <div className="sticky top-20 z-20 -mx-4 border-b border-[#E2DDD4] bg-[#F6F4EF]/92 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 dark:border-white/10 dark:bg-[#10130F]/92">
+          <div className="rounded-2xl border border-[#E2DDD4] bg-white/86 p-2.5 shadow-[0_12px_34px_rgba(28,26,23,0.06)] dark:border-white/10 dark:bg-[#171B16]/88">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen((open) => !open)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-bold text-[#1E3A2F] transition hover:border-[#1E3A2F] hover:bg-[#E8F2EC] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:hover:border-[#7FC79C] dark:hover:bg-[#223426]"
                 >
-                  <option value="">All Levels</option>
-                  {levels.filter(l => l !== 'All').map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
+                  <Search size={16} /> Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-bold text-[#1E3A2F] transition hover:border-[#1E3A2F] hover:bg-[#E8F2EC] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:hover:border-[#7FC79C] dark:hover:bg-[#223426]"
+                >
+                  <SlidersHorizontal size={16} /> Filters
+                </button>
+                {hasActiveFilters && (
+                  <button type="button" onClick={clearFilters} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#F0EDE6] px-3 text-sm font-bold text-[#5C5851] transition hover:bg-[#E8F2EC] hover:text-[#1C1A17] dark:bg-white/5 dark:text-[#B8C2B1] dark:hover:bg-[#223426] dark:hover:text-[#DDEBDD]">
+                    <X size={16} /> Clear
+                  </button>
+                )}
               </div>
-
-              {/* Tech Stack Filter */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-[#5a5665] dark:text-[#a3a3a3] mb-2">Technology</label>
+              <div className="flex items-center gap-2">
+                <span className="hidden items-center gap-2 rounded-xl bg-[#F0EDE6] px-3 py-2 text-xs font-bold text-[#5C5851] dark:bg-white/5 dark:text-[#B8C2B1] sm:inline-flex">
+                  <BookOpen size={14} /> {filteredProjects.length} courses
+                </span>
                 <select
-                  value={selectedTech}
-                  onChange={(e) => setSelectedTech(e.target.value)}
-                  className="w-full h-12 px-4 bg-[#f8f9fc] dark:bg-white/5 border border-[#e2e0e7] dark:border-white/10 rounded-xl text-[#1a1c1e] dark:text-[#e5e5e5] focus:outline-none focus:ring-2 focus:ring-[#5d21df] cursor-pointer"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value)}
+                  className="h-10 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-bold text-[#1C1A17] outline-none transition focus:border-[#1E3A2F] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:focus:border-[#7FC79C]"
                 >
-                  <option value="">All Technologies</option>
-                  {techStacks.filter(t => t !== 'All').map(tech => (
-                    <option key={tech} value={tech}>{tech}</option>
+                  {sorters.map((sorter) => (
+                    <option key={sorter.value} value={sorter.value}>{sorter.label}</option>
                   ))}
                 </select>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Quick Category Tabs */}
-        <div className="flex flex-wrap items-center gap-3 mb-10 pb-4 border-b border-[#e2e0e7] dark:border-white/10">
-          <button
-            onClick={() => setSelectedCategory('')}
-            className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all ${
-              !selectedCategory
-                ? 'bg-[#5d21df] text-white shadow-lg shadow-[#5d21df]/30'
-                : 'bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 text-[#5a5665] dark:text-[#a3a3a3] hover:border-[#5d21df]'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setSelectedCategory('Trending in Market')}
-            className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${
-              selectedCategory === 'Trending in Market'
-                ? 'bg-[#5d21df] text-white shadow-lg shadow-[#5d21df]/30'
-                : 'bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 text-[#5a5665] dark:text-[#a3a3a3] hover:border-[#5d21df]'
-            }`}
-          >
-            <Zap size={14} />
-            Trending
-          </button>
-          <button
-            onClick={() => setSelectedCategory('Hackathon Critic Favorites')}
-            className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${
-              selectedCategory === 'Hackathon Critic Favorites'
-                ? 'bg-[#5d21df] text-white shadow-lg shadow-[#5d21df]/30'
-                : 'bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 text-[#5a5665] dark:text-[#a3a3a3] hover:border-[#5d21df]'
-            }`}
-          >
-            <Trophy size={14} />
-            Hackathon
-          </button>
-          <button
-            onClick={() => setSelectedCategory('Last Minute Helpers')}
-            className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${
-              selectedCategory === 'Last Minute Helpers'
-                ? 'bg-[#5d21df] text-white shadow-lg shadow-[#5d21df]/30'
-                : 'bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 text-[#5a5665] dark:text-[#a3a3a3] hover:border-[#5d21df]'
-            }`}
-          >
-            <Clock size={14} />
-            Quick Builds
-          </button>
+            <div className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${searchOpen || searchQuery ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+              <div className="relative min-h-0">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9B9589] dark:text-[#8F9A8A]" size={18} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search React, auth, AI, dashboard..."
+                  className="h-10 w-full rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] pl-11 pr-10 text-sm font-semibold text-[#1C1A17] outline-none transition placeholder:text-[#9B9589] focus:border-[#1E3A2F] focus:bg-white focus:ring-4 focus:ring-[#1E3A2F]/10 dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:placeholder:text-[#8F9A8A] dark:focus:border-[#7FC79C] dark:focus:bg-[#121711]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#9B9589] hover:bg-[#F0EDE6] hover:text-[#1C1A17] dark:hover:bg-white/10 dark:hover:text-[#F7F2E8]"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className={`${filtersOpen ? 'grid' : 'hidden'} mt-3 gap-2 lg:grid-cols-[1fr_1fr_1fr]`}>
+              <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)} className="h-10 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-semibold text-[#1C1A17] outline-none transition focus:border-[#1E3A2F] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:focus:border-[#7FC79C]">
+                {categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
+              </select>
+              <select value={selectedLevel} onChange={(event) => setSelectedLevel(event.target.value)} className="h-10 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-semibold text-[#1C1A17] outline-none transition focus:border-[#1E3A2F] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:focus:border-[#7FC79C]">
+                {levels.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
+              </select>
+              <select value={selectedTech} onChange={(event) => setSelectedTech(event.target.value)} className="h-10 rounded-xl border border-[#E2DDD4] bg-[#F9F7F2] px-3 text-sm font-semibold text-[#1C1A17] outline-none transition focus:border-[#1E3A2F] dark:border-white/10 dark:bg-[#10130F] dark:text-[#F7F2E8] dark:focus:border-[#7FC79C]">
+                {techStacks.map((tech) => <option key={tech || 'all-tech'} value={tech}>{tech || 'All tech stacks'}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-8 p-4 bg-[#ef4444]/10 border border-[#ef4444]/30 rounded-xl text-[#ef4444] flex items-center gap-3">
-            <Sparkles className="shrink-0" size={20} />
-            <span className="font-medium">Failed to load projects: {error}</span>
+          <div className="mt-8 rounded-xl border border-[#C0392B]/20 bg-[#FCE8E8] p-4 font-semibold text-[#C0392B] dark:bg-[#3A1715] dark:text-[#F8B4AA]">
+            {error}
           </div>
         )}
 
-        {/* Project Grid */}
-        {filteredProjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => {
-              const badgeLevel = project.badge || 'beginner';
-              const badgeConfig = {
-                beginner: { color: 'bg-[#948da2]', label: 'Silver', border: 'border-[#948da2]' },
-                intermediate: { color: 'bg-[#f59e0b]', label: 'Gold', border: 'border-[#f59e0b]' },
-                advanced: { color: 'bg-[#8b5cf6]', label: 'Diamond', border: 'border-[#8b5cf6]' },
-              };
-              const badge = badgeConfig[badgeLevel] || badgeConfig.beginner;
+        <div className="mt-5 flex items-center justify-between">
+          <p className="inline-flex items-center gap-2 text-sm font-bold text-[#5C5851] dark:text-[#B8C2B1]">
+            <Filter size={16} /> {filteredProjects.length} build course{filteredProjects.length === 1 ? '' : 's'} found
+          </p>
+          <p className="hidden items-center gap-2 text-sm font-semibold text-[#9B9589] dark:text-[#8F9A8A] sm:flex">
+            <ArrowUpDown size={15} /> Sorted by {sorters.find((sorter) => sorter.value === sortBy)?.label}
+          </p>
+        </div>
 
-              return (
-                <div
-                  key={project._id}
-                  onClick={() => navigate(`/project/${project._id}`)}
-                  className="group rounded-2xl bg-white dark:bg-[#1a1a1a] border border-[#e2e0e7] dark:border-white/10 hover:border-[#5d21df]/50 dark:hover:border-[#5d21df]/30 transition-all hover:-translate-y-1.5 hover:shadow-2xl cursor-pointer overflow-hidden flex flex-col"
-                >
-                  {/* Thumbnail */}
-                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-[#5d21df]/10 via-[#6b3eea]/10 to-[#00e3fd]/10">
-                    {project.thumbnail?.secure_url ? (
-                      <img
-                        src={project.thumbnail.secure_url}
-                        alt={project.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Code2 className="text-[#5d21df]/30" size={64} />
-                      </div>
-                    )}
-                    
-                    {/* Badge */}
-                    <div className={`absolute top-4 left-4 px-3 py-1.5 ${badge.color} text-white text-[10px] font-bold uppercase tracking-widest rounded-full shadow-lg`}>
-                      {badge.label}
-                    </div>
-
-                    {/* Category */}
-                    {project.category && (
-                      <div className="absolute top-4 right-4 px-3 py-1.5 bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-sm rounded-lg text-[10px] font-bold text-[#5d21df] uppercase">
-                        {project.category.split(' ')[0]}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6 flex-1 flex flex-col">
-                    <h3 className="text-lg font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] mb-2 group-hover:text-[#5d21df] dark:group-hover:text-[#cdbdff] transition-colors line-clamp-2">
-                      {project.title}
-                    </h3>
-                    <p className="text-sm text-[#5a5665] dark:text-[#a3a3a3] leading-relaxed line-clamp-2 mb-4 flex-1">
-                      {project.description}
-                    </p>
-
-                    {/* Tech Stack */}
-                    {(project.techStack?.length > 0) && (
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {project.techStack.slice(0, 3).map((tech, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2.5 py-1 bg-[#f1eefb] dark:bg-[#5d21df]/10 text-[#5d21df] dark:text-[#cdbdff] text-[10px] rounded-lg font-bold uppercase"
-                          >
-                            {tech}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* CTA */}
-                    <div className="pt-4 border-t border-[#e2e0e7]/30 dark:border-white/10 mt-auto">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCheckoutModalOpen(true, project);
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5d21df] text-white text-sm font-bold rounded-xl hover:bg-[#6b3eea] transition-all shadow-md shadow-[#5d21df]/30"
-                      >
-                        <ShoppingCart size={16} />
-                        Explore Project
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {filteredProjects.length ? (
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredProjects.map((project) => (
+              <ProjectCourseCard
+                key={project._id}
+                project={project}
+                onOpen={() => navigate(`/project/${project._id}`)}
+              />
+            ))}
           </div>
         ) : (
-          <div className="py-24 text-center">
-            <div className="w-20 h-20 bg-[#f3f4f9] dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Search className="text-[#948da2]" size={40} />
-            </div>
-            <h3 className="text-xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] mb-2">No projects found</h3>
-            <p className="text-[#5a5665] dark:text-[#a3a3a3] mb-6">Try adjusting your search or filters</p>
-            <button
-              onClick={clearFilters}
-              className="px-6 py-3 bg-[#5d21df] text-white font-bold rounded-xl hover:bg-[#6b3eea] transition-all"
-            >
-              Clear All Filters
+          <div className="mt-8 rounded-2xl border border-[#E2DDD4] bg-white p-8 text-center dark:border-white/10 dark:bg-[#171B16]">
+            <Search className="mx-auto text-[#9B9589] dark:text-[#8F9A8A]" size={42} />
+            <h3 className="mt-4 font-headline text-3xl font-semibold">No matching build courses</h3>
+            <p className="mt-2 text-[#5C5851] dark:text-[#B8C2B1]">Try removing a filter or searching for a broader skill.</p>
+            <button type="button" onClick={clearFilters} className="mt-6 rounded-lg bg-[#1E3A2F] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#2D5C42] dark:bg-[#D9A441] dark:text-[#171B16] dark:hover:bg-[#F0C565]">
+              Reset filters
             </button>
           </div>
         )}

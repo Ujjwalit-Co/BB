@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
 import { projectsExpressApi, githubApi } from '../api/express';
-import { ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
 
 // Helper to get auth token from Zustand store
 const getAuthToken = () => {
@@ -93,6 +93,20 @@ export default function UploadProject() {
     try {
       const { project } = await projectsExpressApi.getById(projectId);
       if (project) {
+        const mediaImages = (project.screenshots || [])
+          .map((image) => {
+            if (!image) return null;
+            if (typeof image === 'string') return { secure_url: image, public_id: '' };
+            return { secure_url: image.secure_url || image.url || '', public_id: image.public_id || '' };
+          })
+          .filter((image) => image?.secure_url);
+
+        const thumbnailImage = project.thumbnail?.secure_url
+          ? [{ secure_url: project.thumbnail.secure_url, public_id: project.thumbnail.public_id || '' }]
+          : [];
+
+        const uploadedImages = mediaImages.length > 0 ? mediaImages : thumbnailImage;
+
         setProjectData({
           title: project.title || '',
           description: project.description || '',
@@ -101,8 +115,8 @@ export default function UploadProject() {
           price: project.price || 99,
           techStack: project.techStack || [],
           downloadLink: project.downloadLink || '',
-          thumbnailUrl: project.thumbnail?.secure_url || '',
-          uploadedImages: project.thumbnail?.secure_url ? [{ secure_url: project.thumbnail.secure_url, public_id: project.thumbnail.public_id }] : []
+          thumbnailUrl: uploadedImages[0]?.secure_url || '',
+          uploadedImages,
         });
         
         setReadme(project.readme || '');
@@ -345,6 +359,7 @@ export default function UploadProject() {
         thumbnail: projectData.uploadedImages?.length > 0 
            ? { secure_url: projectData.uploadedImages[0].secure_url, public_id: projectData.uploadedImages[0].public_id } 
            : { secure_url: projectData.thumbnailUrl },
+        screenshots: projectData.uploadedImages?.map(img => img.secure_url) || [],
         readme,
         codeFiles: selectedFilesContent.map(f => ({
           path: f.path,
@@ -354,10 +369,10 @@ export default function UploadProject() {
         })),
         milestones: aiGenerated.milestones.map((m, idx) => ({
           number: idx + 1,
-          title: m.title,
-          description: m.description,
+          title: m.title || m.name || `Milestone ${idx + 1}`,
+          description: m.description || m.objective || '',
           estimatedTime: m.estimatedTime || '2 hours',
-          steps: m.steps && m.steps.length > 0 ? m.steps : [{ stepNumber: 1, title: m.title, description: m.description }],
+          steps: m.steps && m.steps.length > 0 ? m.steps : [{ stepNumber: 1, title: m.title || m.name || `Milestone ${idx + 1}`, description: m.description || '' }],
         })),
         githubUrl: selectedRepo?.htmlUrl || '',
       };
@@ -367,6 +382,7 @@ export default function UploadProject() {
         delete payload.codeFiles;
         delete payload.githubUrl; 
         await projectsExpressApi.updateProject(editModeId, payload);
+        await projectsExpressApi.submitForReview(editModeId);
       } else {
         payload.reviewStatus = 'pending';
         payload.submittedAt = new Date();
@@ -403,25 +419,57 @@ export default function UploadProject() {
 
   if (globalLoading) {
     return (
-       <div className="flex items-center justify-center min-h-[60vh]">
-         <Loader2 className="animate-spin text-indigo-500" size={40} />
+       <div className="flex min-h-[70vh] items-center justify-center bg-[#F6F4EF] text-[#1E3A2F]">
+         <Loader2 className="animate-spin" size={40} />
        </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#F6F4EF] px-4 py-6 text-[#1C1A17] sm:px-6 lg:px-8 dark:bg-[#10130F] dark:text-[#F7F2E8]">
+      <div className="mx-auto max-w-6xl">
+      <section className="mb-5 overflow-hidden rounded-2xl border border-[#E2DDD4] bg-white shadow-[0_16px_42px_rgba(28,26,23,0.07)] dark:border-white/10 dark:bg-[#171B16]">
+        <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+          <div className="relative overflow-hidden bg-[#1E3A2F] p-5 text-white md:p-6 dark:bg-[#172319]">
+            <div className="absolute right-8 top-6 h-20 w-20 rounded-full bg-white/8" />
+            <div className="absolute bottom-5 right-20 h-12 w-12 rotate-6 rounded-xl bg-[#D4840A]/18" />
+            <p className="relative inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-white/72">
+              <Sparkles size={14} />
+              {editModeId ? 'Course edit desk' : 'Creator upload wizard'}
+            </p>
+            <h1 className="relative mt-3 font-headline text-3xl font-semibold leading-tight">
+              {editModeId ? 'Tune the learning journey.' : 'Convert a repo into a build course.'}
+            </h1>
+            <p className="relative mt-3 max-w-2xl text-sm leading-6 text-white/76">
+              Pick a repository, choose the files that explain it, then let AI draft a course you can review before publishing.
+            </p>
+          </div>
+          <div className="grid content-center gap-2 p-5 dark:bg-[#121711]">
+            {[
+              { label: 'Current step', value: `${currentStep}/${STEPS.length}` },
+              { label: 'Repo', value: selectedRepo?.name || (editModeId ? 'Existing course' : 'Not selected') },
+              { label: 'Milestones', value: aiGenerated.milestones?.length || 'Drafting' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-3 dark:border-white/10 dark:bg-[#10130F]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#9B9589] dark:text-[#8F9A8A]">{item.label}</p>
+                <p className="mt-1 truncate font-headline text-xl font-semibold text-[#1E3A2F] dark:text-[#9DE6B8]">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Step Indicator */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-black">{editModeId ? 'Edit Project' : 'Upload Project'}</h1>
-          <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Step {currentStep} of {STEPS.length}</span>
+      <div className="mb-5 rounded-2xl border border-[#E2DDD4] bg-white p-4 shadow-[0_12px_34px_rgba(28,26,23,0.05)] dark:border-white/10 dark:bg-[#171B16]">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-headline text-2xl font-semibold">{editModeId ? 'Edit course' : 'Upload course'}</h2>
+          <span className="rounded-full bg-[#F0EDE6] px-3 py-1 text-xs font-bold text-[#5C5851] dark:bg-white/5 dark:text-[#B8C2B1]">Step {currentStep} of {STEPS.length}</span>
         </div>
         
-        <div className="flex items-center justify-between relative">
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full z-0" />
+        <div className="relative flex items-start justify-between gap-2 overflow-x-auto pb-5">
+          <div className="absolute left-4 right-4 top-4 h-1 rounded-full bg-[#F0EDE6] dark:bg-[#10130F]" />
           <div 
-            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-indigo-500 rounded-full z-0 transition-all duration-300" 
+            className="absolute left-4 top-4 h-1 rounded-full bg-[#1E3A2F] transition-all duration-300 dark:bg-[#7FC79C]" 
             style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
           />
           
@@ -436,19 +484,19 @@ export default function UploadProject() {
                 key={step.id} 
                 onClick={() => isClickable && goToStep(step.id)}
                 disabled={!isClickable}
-                className={`relative z-10 flex flex-col items-center gap-2 outline-none group ${isDisabledStr} ${!isClickable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`relative z-10 flex min-w-16 flex-col items-center gap-2 outline-none group ${isDisabledStr} ${!isClickable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                  isCurrent ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-110' : 
-                  isCompleted ? 'bg-indigo-500 text-white' : 
-                  'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold transition-all duration-300 ${
+                  isCurrent ? 'border-[#1E3A2F] bg-[#1E3A2F] text-white shadow-lg shadow-[#1E3A2F]/20 dark:border-[#7FC79C] dark:bg-[#2F6B49]' : 
+                  isCompleted ? 'border-[#2A9D6F] bg-[#2A9D6F] text-white' : 
+                  'border-[#E2DDD4] bg-white text-[#9B9589] dark:border-white/10 dark:bg-[#10130F]'
                 }`}>
-                  <step.icon size={14} />
+                  {isCompleted ? <CheckCircle2 size={14} /> : <step.icon size={14} />}
                 </div>
-                <span className={`absolute top-10 text-[10px] whitespace-nowrap font-medium transition-colors ${
-                  isCurrent ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 
-                  isCompleted ? 'text-slate-700 dark:text-slate-300' : 
-                  'text-slate-400 dark:text-slate-500'
+                <span className={`text-[10px] whitespace-nowrap font-bold transition-colors ${
+                  isCurrent ? 'text-[#1E3A2F] dark:text-[#9DE6B8]' : 
+                  isCompleted ? 'text-[#5C5851] dark:text-[#B8C2B1]' : 
+                  'text-[#9B9589] dark:text-[#8F9A8A]'
                 }`}>
                   {step.title}
                 </span>
@@ -459,7 +507,7 @@ export default function UploadProject() {
       </div>
 
       {/* Step Content */}
-      <div className="bg-white dark:bg-[#1a1a1a] shadow-sm border border-slate-200 dark:border-white/10 rounded-2xl p-8 min-h-[400px] mt-12 transition-all">
+      <div className="rounded-2xl border border-[#E2DDD4] bg-white p-5 shadow-[0_14px_38px_rgba(28,26,23,0.05)] transition-all dark:border-white/10 dark:bg-[#171B16] md:p-6">
         {currentStep === 1 && <StepGithub githubConnected={githubConnected} githubUsername={githubUsername} onConnect={handleConnectGitHub} />}
         {currentStep === 2 && <StepRepos repos={repos} loading={loading} selectedRepo={selectedRepo} onSelect={handleRepoSelect} />}
         {currentStep === 3 && <StepReadme readme={readme} setReadme={setReadme} />}
@@ -473,11 +521,11 @@ export default function UploadProject() {
 
       {/* Navigation Constraints */}
       {currentStep !== 5 && (
-        <div className="flex items-center justify-between mt-6">
+        <div className="mt-5 flex items-center justify-between">
           <button
             onClick={prevStep}
             disabled={currentStep === 1 || (editModeId && currentStep === 6)}
-            className="px-6 py-3 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-xl font-medium disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex items-center gap-2 shadow-sm"
+            className="flex items-center gap-2 rounded-lg border border-[#E2DDD4] bg-white px-5 py-2.5 font-bold text-[#5C5851] shadow-sm transition-colors hover:bg-[#F0EDE6] disabled:opacity-30 dark:border-white/10 dark:bg-[#171B16] dark:text-[#B8C2B1] dark:hover:bg-white/5"
           >
             <ChevronLeft size={18} /> Back
           </button>
@@ -492,13 +540,14 @@ export default function UploadProject() {
                 (currentStep === 4 && selectedFiles.length === 0) ||
                 (currentStep === 7 && (projectData.price < 99 || projectData.price > 3999))
               }
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-medium transition-all shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 flex items-center gap-2"
+              className="flex items-center gap-2 rounded-lg bg-[#1E3A2F] px-5 py-2.5 font-bold text-white shadow-md shadow-[#1E3A2F]/20 transition-all hover:bg-[#2D5C42] disabled:opacity-50 dark:!bg-[#C8F7D4] dark:!text-[#08140D]"
             >
               Next <ChevronRight size={18} />
             </button>
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

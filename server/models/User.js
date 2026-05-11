@@ -32,6 +32,12 @@ const userSchema = new mongoose.Schema(
       public_id: String,
       secure_url: String,
     },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Bio cannot exceed 500 characters"],
+      default: "",
+    },
     credits: {
       type: Number,
       default: 20, // Free credits on signup

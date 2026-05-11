@@ -1,6 +1,5 @@
 import {
-  Github, FileText, Code, Sparkles, DollarSign, Shield,
-  FolderOpen, Eye
+  Code, DollarSign, Eye, FileText, FolderOpen, Github, Shield, Sparkles,
 } from 'lucide-react';
 
 export const STEPS = [
@@ -24,9 +23,9 @@ export const TECH_OPTIONS = [
 ];
 
 export const PRICE_TIERS = {
-  silver:  { label: '🥈 Silver',  min: 99,   max: 299,  color: '#94a3b8' },
-  gold:    { label: '🥇 Gold',    min: 300,  max: 999,  color: '#f59e0b' },
-  diamond: { label: '💎 Diamond', min: 1000, max: 3999, color: '#a78bfa' },
+  silver: { label: 'Starter', min: 99, max: 299, color: '#1E3A2F' },
+  gold: { label: 'Portfolio', min: 300, max: 999, color: '#D4840A' },
+  diamond: { label: 'Advanced', min: 1000, max: 3999, color: '#C0392B' },
 };
 
 export function getBadgeFromPrice(price) {
@@ -36,7 +35,7 @@ export function getBadgeFromPrice(price) {
 }
 
 export function getPriceError(price) {
-  if (price < 99) return 'Minimum price is ₹99';
-  if (price > 3999) return 'Maximum price is ₹3999';
+  if (price < 99) return 'Minimum price is Rs 99';
+  if (price > 3999) return 'Maximum price is Rs 3999';
   return '';
 }

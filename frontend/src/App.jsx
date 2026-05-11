@@ -14,6 +14,7 @@ import Auth from './pages/Auth';
 import Lab from './pages/Lab';
 import BuyCredits from './pages/BuyCredits';
 import SellerProfile from './pages/SellerProfile'; // Added import for SellerProfile
+import Profile from './pages/Profile';
 import { Toaster } from 'react-hot-toast';
 import CheckoutModal from './components/CheckoutModal';
 
@@ -31,9 +32,9 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0d0d0d] text-slate-900 dark:text-white transition-colors duration-300">
+    <div className="bb-shell min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1A17] transition-colors duration-300">
       <Navbar />
-      <main className="flex-grow selection:bg-blue-500/30 overflow-x-hidden pt-16">
+      <main className="flex-grow overflow-x-hidden pt-24">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
@@ -46,6 +47,7 @@ function AppContent() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/buy-credits" element={<BuyCredits />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </main>
       <Footer />

@@ -40,6 +40,11 @@ const userProgressSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    unlockedMilestones: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     completedSteps: [
       {
         milestoneIndex: { type: Number, required: true },
@@ -86,6 +91,7 @@ const userProgressSchema = new mongoose.Schema(
       {
         filename: { type: String, required: true },
         content: { type: String, required: true },
+        language: { type: String },
         lastSavedAt: { type: Date, default: Date.now },
       },
     ],
@@ -126,8 +132,7 @@ userProgressSchema.methods.isTrialExpired = function () {
 userProgressSchema.methods.isMilestoneUnlocked = function (milestoneIndex) {
   // Purchased users have all milestones unlocked
   if (!this.isFreeTrial) return true;
-  // Free trial users only have milestone 0 unlocked
-  return milestoneIndex === 0;
+  return milestoneIndex < (this.unlockedMilestones || 1);
 };
 
 // Method to get messages used in current milestone

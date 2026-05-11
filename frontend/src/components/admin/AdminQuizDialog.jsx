@@ -73,99 +73,109 @@ export default function AdminQuizDialog({ project, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20">
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Edit3 className="text-indigo-500" size={24} />
-              Edit Quizzes for {project.title}
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">Review and modify the pre-generated AI quizzes.</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1C1A17]/60 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-[#E2DDD4] bg-[#F6F4EF] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#E2DDD4] bg-white px-8 py-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FEF3DC] text-[#D4840A]">
+              <Edit3 size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#D4840A]">Quality Control</p>
+              <h2 className="mt-1 font-headline text-2xl font-semibold text-[#1C1A17]">
+                Review Quizzes: {project.title}
+              </h2>
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="rounded-full p-2 text-[#5C5851] hover:bg-[#F0EDE6] hover:text-[#1C1A17]">
+            <X size={22} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
           {milestones.length === 0 && (
-            <div className="text-center text-slate-500 py-10">No milestones found for this project yet.</div>
+            <div className="py-20 text-center">
+              <p className="font-headline text-xl font-semibold text-[#5C5851]">No milestones found for this build course.</p>
+            </div>
           )}
           {milestones.map((ms, mIndex) => (
-            <div key={ms.number} className="border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden">
-              <div 
-                className="bg-slate-50 dark:bg-white/5 p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+            <div key={ms.number} className="overflow-hidden rounded-2xl border border-[#E2DDD4] bg-white">
+              <div
+                className="flex cursor-pointer items-center justify-between bg-[#FBF9F6] px-6 py-4 transition-colors hover:bg-[#F0EDE6]"
                 onClick={() => setExpandedMilestone(expandedMilestone === mIndex ? null : mIndex)}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-500 flex items-center justify-center font-bold text-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1E3A2F] text-sm font-bold text-white">
                     {ms.number}
                   </div>
-                  <h3 className="font-semibold">{ms.title || `Milestone ${ms.number}`}</h3>
-                  <span className="text-xs px-2 py-1 rounded bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-medium">
-                    {ms.quiz?.questions?.length || 0} Questions
-                  </span>
+                  <div>
+                    <h3 className="font-headline text-lg font-semibold">{ms.title || `Milestone ${ms.number}`}</h3>
+                    <p className="text-xs font-bold text-[#5C5851] uppercase tracking-wide">
+                      {ms.quiz?.questions?.length || 0} Questions
+                    </p>
+                  </div>
                 </div>
-                <ChevronDown size={20} className={`text-slate-400 transition-transform ${expandedMilestone === mIndex ? 'rotate-180' : ''}`} />
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${expandedMilestone === mIndex ? 'bg-[#1E3A2F] text-white' : 'text-[#5C5851]'}`}>
+                  <ChevronDown size={18} className={`transition-transform duration-300 ${expandedMilestone === mIndex ? 'rotate-180' : ''}`} />
+                </div>
               </div>
 
               {expandedMilestone === mIndex && (
-                <div className="p-4 space-y-6">
+                <div className="p-6 space-y-8 bg-white">
                   {(!ms.quiz || !ms.quiz.questions || ms.quiz.questions.length === 0) ? (
-                    <div className="text-center py-6 text-slate-500 bg-slate-50 dark:bg-white/2 rounded-lg border border-dashed border-slate-300 dark:border-white/10">
-                      No quiz generated for this milestone yet. (It might still be generating in the background).
+                    <div className="rounded-xl border-2 border-dashed border-[#E2DDD4] bg-[#F6F4EF] py-10 text-center text-[#5C5851]">
+                      No quiz has been generated for this milestone yet.
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                       {ms.quiz.questions.map((q, qIndex) => (
-                        <div key={qIndex} className="bg-white dark:bg-black/20 p-5 rounded-xl border border-slate-200 dark:border-white/10 relative group">
-                          <button 
+                        <div key={qIndex} className="relative rounded-2xl border border-[#E2DDD4] bg-[#FBF9F6] p-6 group">
+                          <button
                             onClick={() => handleDeleteQuestion(mIndex, qIndex)}
-                            className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg"
+                            className="absolute right-4 top-4 rounded-lg p-2 text-[#C0392B] opacity-0 transition hover:bg-[#FCE8E8] group-hover:opacity-100"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={18} />
                           </button>
-                          
-                          <div className="space-y-4">
+
+                          <div className="space-y-6">
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Question {qIndex + 1}</label>
-                                <textarea 
-                                  value={q.question || ''}
-                                  onChange={(e) => handleUpdateQuestion(mIndex, qIndex, 'question', e.target.value)}
-                                  className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-y min-h-[80px]"
-                                />
+                              <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Question {qIndex + 1}</label>
+                              <textarea
+                                value={q.question || ''}
+                                onChange={(e) => handleUpdateQuestion(mIndex, qIndex, 'question', e.target.value)}
+                                className="mt-2 w-full rounded-xl border border-[#E2DDD4] bg-white p-4 text-sm font-semibold leading-6 focus:border-[#1E3A2F] focus:outline-none min-h-[100px]"
+                              />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                               {(q.options || []).map((opt, optIndex) => {
                                 const isCorrect = q.correctAnswer === optIndex || q.correct_answer === optIndex || q.correctAnswer === opt || q.correct_answer === opt;
-                                
+
                                 return (
                                   <div key={optIndex} className="relative group/opt">
-                                    <input 
+                                    <input
                                       value={opt}
                                       onChange={(e) => handleUpdateOption(mIndex, qIndex, optIndex, e.target.value)}
                                       placeholder={`Option ${optIndex + 1}`}
-                                      className={`w-full bg-slate-50 dark:bg-white/5 border p-3 pl-10 rounded-lg text-sm pr-10 focus:outline-none transition-all ${
-                                        isCorrect 
-                                          ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10' 
-                                          : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
+                                      className={`w-full rounded-xl border p-4 pl-12 pr-12 text-sm font-bold transition-all focus:outline-none ${
+                                        isCorrect
+                                          ? 'border-[#2A9D6F] bg-[#E8F2EC] text-[#1E3A2F] ring-1 ring-[#2A9D6F]'
+                                          : 'border-[#E2DDD4] bg-white text-[#5C5851] hover:border-[#1E3A2F]'
                                       }`}
                                     />
-                                    <div className={`absolute left-3 top-3.5 text-xs font-bold uppercase w-5 text-center transition-colors ${isCorrect ? 'text-emerald-500' : 'text-slate-400'}`}>
-                                        {String.fromCharCode(65 + optIndex)}
+                                    <div className={`absolute left-4 top-4 font-mono text-sm font-bold ${isCorrect ? 'text-[#1E3A2F]' : 'text-[#9B9589]'}`}>
+                                      {String.fromCharCode(65 + optIndex)}
                                     </div>
                                     <button
                                       title="Set as correct answer"
                                       onClick={() => handleSetCorrect(mIndex, qIndex, optIndex)}
-                                      className={`absolute right-3 top-3.5 p-1 rounded-full transition-all ${
+                                      className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full transition-all ${
                                         isCorrect
-                                          ? 'bg-emerald-500 text-white scale-110 shadow-lg shadow-emerald-500/40'
-                                          : 'text-slate-300 dark:text-slate-600 hover:text-emerald-500 hover:scale-110 opacity-40 group-hover/opt:opacity-100'
+                                          ? 'bg-[#2A9D6F] text-white shadow-lg'
+                                          : 'bg-[#F0EDE6] text-[#9B9589] hover:bg-[#1E3A2F] hover:text-white'
                                       }`}
                                     >
-                                      <Check size={12} strokeWidth={3} />
+                                      <Check size={14} strokeWidth={3} />
                                     </button>
                                   </div>
                                 );
@@ -173,12 +183,12 @@ export default function AdminQuizDialog({ project, onClose, onSave }) {
                             </div>
 
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Explanation</label>
-                                <textarea 
-                                  value={q.explanation || ''}
-                                  onChange={(e) => handleUpdateQuestion(mIndex, qIndex, 'explanation', e.target.value)}
-                                  className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3 rounded-lg text-sm focus:outline-none inline-block resize-y min-h-[70px] text-slate-600 dark:text-slate-400"
-                                />
+                              <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Explanation</label>
+                              <textarea
+                                value={q.explanation || ''}
+                                onChange={(e) => handleUpdateQuestion(mIndex, qIndex, 'explanation', e.target.value)}
+                                className="mt-2 w-full rounded-xl border border-[#E2DDD4] bg-white p-4 text-sm font-medium leading-6 text-[#5C5851] focus:border-[#1E3A2F] focus:outline-none min-h-[80px]"
+                              />
                             </div>
                           </div>
                         </div>
@@ -186,11 +196,11 @@ export default function AdminQuizDialog({ project, onClose, onSave }) {
                     </div>
                   )}
 
-                  <button 
+                  <button
                     onClick={() => handleAddQuestion(mIndex)}
-                    className="w-full py-3 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-xl text-slate-500 hover:text-indigo-500 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all flex items-center justify-center gap-2 font-medium"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#E2DDD4] py-4 font-bold text-[#5C5851] transition hover:border-[#1E3A2F] hover:bg-[#E8F2EC] hover:text-[#1E3A2F]"
                   >
-                    <Plus size={18} /> Add New Question
+                    <Plus size={20} /> Add New Question
                   </button>
                 </div>
               )}
@@ -198,19 +208,19 @@ export default function AdminQuizDialog({ project, onClose, onSave }) {
           ))}
         </div>
 
-        <div className="p-6 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-3 bg-slate-50 dark:bg-black/20">
-          <button 
+        <div className="flex items-center justify-end gap-4 border-t border-[#E2DDD4] bg-white px-8 py-6">
+          <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl font-semibold hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+            className="rounded-lg px-6 py-3 text-sm font-bold text-[#5C5851] hover:bg-[#F0EDE6] hover:text-[#1C1A17]"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-colors disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
+            className="flex items-center gap-2 rounded-lg bg-[#1E3A2F] px-8 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(30,58,47,0.18)] transition hover:bg-[#2D5C42] disabled:opacity-50"
           >
-            {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" /> : <Save size={18} />}
+            {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>

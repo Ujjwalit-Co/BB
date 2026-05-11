@@ -26,10 +26,19 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS Configuration
+// Cross-Origin Isolation for WebContainers
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+});
+
+// CORS Configuration - Allow frontend with credentials
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true,
+  origin: process.env.NODE_ENV === 'production' 
+    ? (process.env.FRONTEND_URL || 'http://localhost:5173')
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'], // Specific origins for credentials
+  credentials: true, // Enable credentials (cookies, auth headers)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));

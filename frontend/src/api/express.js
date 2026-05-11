@@ -1,14 +1,15 @@
 import axios from 'axios';
 import useAuthStore from '../store/useAuthStore';
 
-const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
+// If VITE_EXPRESS_API_URL is empty (development), use relative path for proxy
+const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || '/api/v1';
 
 /**
  * Axios instance for Express backend
  */
 const axiosInstance = axios.create({
   baseURL: EXPRESS_API_URL,
-  withCredentials: true,
+  withCredentials: false, // Disable for ngrok/proxy compatibility
   headers: {
     'Content-Type': 'application/json',
   },
@@ -142,6 +143,10 @@ export const projectsExpressApi = {
     const { data } = await axiosInstance.get(`/projects/${projectId}/milestones/${milestoneNumber}/quiz`);
     return data;
   },
+  rateProject: async (projectId, payload) => {
+    const { data } = await axiosInstance.post(`/projects/${projectId}/rate`, payload);
+    return data;
+  },
 };
 
 // ─── Purchase API ─────────────────────────────────────────
@@ -223,6 +228,10 @@ export const githubApi = {
     const { data } = await axiosInstance.post('/github/disconnect');
     return data;
   },
+  getStatus: async () => {
+    const { data } = await axiosInstance.get('/github/status');
+    return data;
+  },
 
   getRepositories: async () => {
     const { data } = await axiosInstance.get('/github/repositories');
@@ -259,6 +268,21 @@ export const adminApi = {
 
   getAllProjects: async () => {
     const { data } = await axiosInstance.get('/admin/all-projects');
+    return data;
+  },
+
+  updateCertificateTemplate: async (projectId, template) => {
+    const { data } = await axiosInstance.put(`/admin/${projectId}/certificate-template`, template);
+    return data;
+  },
+
+  getCreatorCertTemplates: async () => {
+    const { data } = await axiosInstance.get('/admin/creator-cert-templates');
+    return data;
+  },
+
+  updateCreatorCertTemplate: async (tier, template) => {
+    const { data } = await axiosInstance.put(`/admin/creator-cert-templates/${tier}`, template);
     return data;
   },
 };

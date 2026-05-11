@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Check, Settings, Monitor, Package, Edit3 } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
@@ -23,7 +23,7 @@ export default function OnboardingModal() {
 
   return (
     <div className="lab-modal-overlay" style={{ backdropFilter: 'none', background: 'rgba(0,0,0,0.4)' }}>
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{ 
@@ -156,7 +156,7 @@ export default function OnboardingModal() {
             Start Learning
           </button>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

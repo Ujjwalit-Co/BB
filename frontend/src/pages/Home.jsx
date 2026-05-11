@@ -1,82 +1,57 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { projectsExpressApi } from '../api/express';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  Zap, TrendingUp, Trophy, Clock, Star, ChevronRight, Terminal,
-  Sparkles, Users, Target, Shield, ArrowRight, Eye, Download,
-  Cpu, Globe, Users2, GitBranch, Brain, Activity, Server
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Compass,
+  Github,
+  Layers3,
+  MessageSquare,
+  Sparkles,
+  Trophy,
+  Upload,
 } from 'lucide-react';
+import { projectsExpressApi } from '../api/express';
+import ProjectCourseCard from '../components/ProjectCourseCard';
+import { normalizeProject } from '../utils/normalizeProject';
 
-// Team member data
-const teamMembers = [
-  { name: 'Daksh Dixit', role: 'Code Editor & Lab Lead', image: 'https://ui-avatars.com/api/?name=Daksh+Dixit&background=5d21df&color=fff&size=200' },
-  { name: 'Tanishq Rastogi', role: 'Node.js Backend & Payments', image: 'https://ui-avatars.com/api/?name=Tanishq+Rastogi&background=00e3fd&color=fff&size=200' },
-  { name: 'Aayush Kumar', role: 'AI Services & FastAPI', image: 'https://ui-avatars.com/api/?name=Aayush+Kumar&background=8b5cf6&color=fff&size=200' },
-  { name: 'Priyanshu Sharma', role: 'Frontend & User Experience', image: 'https://ui-avatars.com/api/?name=Priyanshu+Sharma&background=f59e0b&color=fff&size=200' },
+const proofStats = [
+  { label: 'Guided builds', value: '20+' },
+  { label: 'Free first milestones', value: '1 per course' },
+  { label: 'AI help limit', value: '10+ msgs' },
 ];
 
-// Floating particles for dynamic background
-const FloatingParticles = () => {
-  const shapes = useMemo(() => [
-    { char: '{', size: 40, x: 15, y: 20, delay: 0, duration: 20 },
-    { char: '}', size: 35, x: 80, y: 15, delay: 2, duration: 18 },
-    { char: '<>', size: 50, x: 70, y: 70, delay: 4, duration: 22 },
-    { char: '/>', size: 30, x: 25, y: 80, delay: 1, duration: 16 },
-    { char: '()', size: 45, x: 90, y: 45, delay: 3, duration: 24 },
-    { char: '[]', size: 38, x: 5, y: 50, delay: 5, duration: 19 },
-    { char: '=>', size: 42, x: 50, y: 25, delay: 2, duration: 21 },
-    { char: '::', size: 32, x: 60, y: 85, delay: 6, duration: 17 },
-  ], []);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none -z-5">
-      {shapes.map((shape, i) => (
-        <div
-          key={i}
-          className="absolute font-mono font-bold text-[#5d21df]/8 dark:text-[#5d21df]/10 animate-float"
-          style={{
-            left: `${shape.x}%`,
-            top: `${shape.y}%`,
-            fontSize: `${shape.size}px`,
-            animationDelay: `${shape.delay}s`,
-            animationDuration: `${shape.duration}s`,
-          }}
-        >
-          {shape.char}
-        </div>
-      ))}
-    </div>
-  );
-};
+const paths = [
+  {
+    title: 'Frontend Foundations',
+    copy: 'Learn routing, state, APIs, forms, and deployment through real app builds.',
+    tags: ['React', 'Tailwind', 'APIs'],
+  },
+  {
+    title: 'Backend Confidence',
+    copy: 'Build auth, databases, payments, file uploads, and server-side workflows.',
+    tags: ['Node.js', 'MongoDB', 'Razorpay'],
+  },
+  {
+    title: 'AI Product Builder',
+    copy: 'Turn prompts, code context, and checkpoints into useful AI-powered products.',
+    tags: ['FastAPI', 'Gemini', 'Python'],
+  },
+];
 
 export default function Home() {
+  const navigate = useNavigate();
   const [featuredProjects, setFeaturedProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const heroRef = useRef(null);
-
-  // Mouse tracking for parallax effect
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!heroRef.current) return;
-      const rect = heroRef.current.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width - 0.5) * 20;
-      const y = ((e.clientY - rect.top) / rect.height - 0.5) * 20;
-      setMousePos({ x, y });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const response = await projectsExpressApi.getAll();
-        const items = response.projects || [];
-        setFeaturedProjects(items.slice(0, 3));
-      } catch (e) {
-        console.error('Error fetching projects:', e);
+        setFeaturedProjects((response.projects || []).map(normalizeProject).slice(0, 3));
+      } catch (error) {
+        console.error('Error fetching projects:', error);
       } finally {
         setLoading(false);
       }
@@ -84,426 +59,184 @@ export default function Home() {
     fetchProjects();
   }, []);
 
-  const badge = (level) => {
-    const map = { beginner: 'bg-[#948da2]', intermediate: 'bg-[#f59e0b]', advanced: 'bg-[#8b5cf6]' };
-    const colors = { beginner: 'bg-[#948da2]', intermediate: 'bg-[#f59e0b]', advanced: 'bg-[#8b5cf6]' };
-    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full text-white ${colors[level] || 'bg-[#948da2]'}`}>{map[level] || level}</span>;
-  };
-
   return (
-    <div className="min-h-screen bg-[#f8f9fc] dark:bg-[#0a0a0a]">
-      {/* Hero Section */}
-      <section ref={heroRef} className="relative min-h-[700px] flex flex-col items-center justify-center overflow-hidden px-6 py-32">
-        {/* Dynamic Animated Background */}
-        <div className="absolute inset-0 -z-10">
-          {/* Base gradient with animated mesh */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#5d21df]/5 via-transparent to-[#00e3fd]/5"></div>
-          
-          {/* Primary glow orb with parallax */}
-          <div 
-            className="absolute w-[600px] h-[600px] rounded-full blur-[120px] transition-transform duration-300 ease-out"
-            style={{
-              background: 'radial-gradient(circle, rgba(93,33,223,0.15) 0%, transparent 70%)',
-              top: '20%',
-              left: '30%',
-              transform: `translate(${mousePos.x * -1}px, ${mousePos.y * -1}px)`,
-            }}
-          ></div>
-          
-          {/* Secondary glow orb with opposite parallax */}
-          <div 
-            className="absolute w-[400px] h-[400px] rounded-full blur-[100px] transition-transform duration-300 ease-out"
-            style={{
-              background: 'radial-gradient(circle, rgba(0,227,253,0.12) 0%, transparent 70%)',
-              bottom: '10%',
-              right: '20%',
-              transform: `translate(${mousePos.x * 0.8}px, ${mousePos.y * 0.8}px)`,
-            }}
-          ></div>
-          
-          {/* Accent orb - purple */}
-          <div 
-            className="absolute w-[300px] h-[300px] rounded-full blur-[80px] transition-transform duration-300 ease-out"
-            style={{
-              background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
-              top: '60%',
-              left: '60%',
-              transform: `translate(${mousePos.x * 0.5}px, ${mousePos.y * -0.5}px)`,
-            }}
-          ></div>
-
-          {/* Animated grid lines */}
-          <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `
-                linear-gradient(rgba(93,33,223,0.3) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(93,33,223,0.3) 1px, transparent 1px)
-              `,
-              backgroundSize: '60px 60px',
-              animation: 'gridMove 20s linear infinite',
-            }}></div>
-          </div>
-
-          {/* Floating code symbols */}
-          <FloatingParticles />
-        </div>
-
-        {/* Floating geometric elements with parallax */}
-        <div 
-          className="absolute bottom-20 left-10 hidden lg:block transition-transform duration-300"
-          style={{ transform: `translate(${mousePos.x * -0.3}px, ${mousePos.y * -0.3}px)` }}
-        >
-          <div className="relative">
-            <div className="w-40 h-40 border-2 border-[#5d21df]/20 rounded-full"></div>
-            <div className="absolute inset-4 border border-[#00e3fd]/15 rounded-full animate-spin" style={{ animationDuration: '10s' }}></div>
-            <div className="absolute inset-8 border border-[#8b5cf6]/10 rounded-full animate-spin" style={{ animationDuration: '15s', animationDirection: 'reverse' }}></div>
-          </div>
-        </div>
-
-        <div 
-          className="absolute top-32 right-20 hidden lg:block transition-transform duration-300"
-          style={{ transform: `translate(${mousePos.x * 0.4}px, ${mousePos.y * 0.4}px)` }}
-        >
-          <div className="w-24 h-24 border border-[#00e3fd]/20 rotate-45 animate-pulse"></div>
-        </div>
-
-        <div 
-          className="absolute top-1/2 left-20 hidden lg:block transition-transform duration-300"
-          style={{ transform: `translate(${mousePos.x * -0.6}px, ${mousePos.y * 0.6}px)` }}
-        >
-          <div className="w-16 h-16 bg-gradient-to-br from-[#5d21df]/5 to-[#00e3fd]/5 rounded-lg rotate-12"></div>
-        </div>
-
-        <div className="max-w-4xl text-center space-y-8 relative z-10">
-          {/* Glass backdrop behind text for readability */}
-          <div className="absolute inset-0 -z-10 bg-white/60 dark:bg-black/40 backdrop-blur-xl rounded-3xl"></div>
-
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#5d21df]/10 dark:bg-[#5d21df]/20 border border-[#5d21df]/30 shadow-lg shadow-[#5d21df]/10">
-            <span className="w-2 h-2 rounded-full bg-[#5d21df] animate-pulse"></span>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#5d21df] dark:text-[#a78bfa] font-headline">Intelligence Reimagined</span>
-          </div>
-
-          {/* Title */}
-          <h1 className="text-5xl md:text-8xl font-headline font-bold tracking-tighter leading-[0.9] drop-shadow-lg">
-            <span className="text-[#0f0f1a] dark:text-white">Welcome to</span> <br/>
-            <span className="bg-gradient-to-r from-[#5d21df] via-[#7c3aed] to-[#00e3fd] bg-clip-text text-transparent animate-shimmer" style={{ backgroundSize: '200% auto' }}>
-              BrainBazaar
-            </span>
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-lg md:text-xl text-[#3a3a4a] dark:text-[#d4d4d8] max-w-2xl mx-auto font-normal leading-relaxed">
-            The premium ecosystem where academic rigor meets frontier AI. Exchange knowledge, collaborate with global peers, and accelerate your learning trajectory.
-          </p>
-
-          {/* CTAs */}
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <Link
-              to="/catalog"
-              className="px-8 py-4 bg-[#5d21df] hover:bg-[#4c1fbf] text-white rounded-xl font-bold shadow-2xl shadow-[#5d21df]/30 hover:scale-105 hover:shadow-[#5d21df]/40 transition-all"
-            >
-              Enter Marketplace
-            </Link>
-            <Link
-              to="/lab/demo"
-              className="px-8 py-4 bg-white/80 dark:bg-white/10 backdrop-blur-md border-2 border-[#5d21df]/30 dark:border-white/20 rounded-xl font-bold text-[#1a1c1e] dark:text-white hover:bg-white dark:hover:bg-white/20 hover:border-[#5d21df]/50 transition-all shadow-lg"
-            >
-              Explore Labs
-            </Link>
-          </div>
-        </div>
-
-        {/* Geometric Floating Elements */}
-        <div className="absolute bottom-10 left-10 hidden lg:block opacity-40">
-          <div className="w-32 h-32 border border-[#5d21df]/30 rounded-full flex items-center justify-center p-4">
-            <div className="w-full h-full border border-[#00e3fd]/30 rounded-full"></div>
-          </div>
-        </div>
-      </section>
-
-      {/* Bento Grid: Feature Section */}
-      <section className="py-20 px-6 md:px-8 max-w-7xl mx-auto">
-        <div className="mb-16">
-          <h2 className="text-4xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] tracking-tight mb-4">Core Ecosystem</h2>
-          <div className="h-1 w-20 bg-gradient-to-r from-[#5d21df] to-[#00e3fd] rounded-full"></div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-6 auto-rows-[minmax(180px,auto)]">
-          {/* AI Tutor Integration (Large Box) */}
-          <div className="md:col-span-2 md:row-span-2 glass-card rounded-xl p-10 flex flex-col justify-between group overflow-hidden relative bg-white/70 dark:bg-[#1a1a1a]/70 backdrop-blur-xl border border-[#5d21df]/10">
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-all">
-              <Brain size={120} />
+    <div className="min-h-screen bg-[#F6F4EF] text-[#1C1A17] dark:bg-[#10130F] dark:text-[#F7F2E8]">
+      <section className="relative overflow-hidden border-b border-[#E2DDD4] dark:border-white/10">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 py-14 md:px-8 lg:min-h-[620px] lg:grid-cols-[1fr_420px] lg:items-center lg:py-16">
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#E2DDD4] bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-[#1E3A2F] dark:border-white/10 dark:bg-white/5 dark:text-[#DDEBDD]">
+              <Sparkles size={14} />
+              Project-based learning marketplace
             </div>
-            <div>
-              <Cpu className="text-[#5d21df] mb-6" size={40} />
-              <h3 className="text-3xl font-headline font-bold mb-4 text-[#1a1c1e] dark:text-[#e5e5e5]">AI Tutor Integration</h3>
-              <p className="text-[#5a5665] dark:text-[#a3a3a3] font-light leading-relaxed max-w-sm">
-                Personalized learning paths driven by neural-link feedback. Your curriculum adapts in real-time to your cognitive strengths and weaknesses.
-              </p>
-            </div>
-            <div className="pt-8">
-              <Link to="/lab/demo" className="flex items-center gap-2 text-[#5d21df] font-bold text-sm cursor-pointer group">
-                <span>Launch Neural Sandbox</span>
-                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+
+            <h1 className="font-headline text-4xl font-semibold leading-[1.02] tracking-tight text-[#1C1A17] md:text-6xl dark:text-[#F7F2E8]">
+              Learn real projects by rebuilding the journey.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-[#5C5851] md:text-lg dark:text-[#B8C2B1]">
+              BrainBazaar turns student-built repositories into guided build courses.
+              Start with the first milestone, ask for hints when stuck, and unlock the full project after you understand how it works.
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/catalog"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1E3A2F] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(30,58,47,0.18)] transition hover:bg-[#2D5C42] dark:!bg-[#C8F7D4] dark:!text-[#08140D] dark:!shadow-[0_0_0_1px_rgba(200,247,212,0.22),0_16px_34px_rgba(127,199,156,0.22)] dark:hover:!bg-[#DDFBE5]"
+              >
+                Explore projects
+                <ArrowRight size={18} />
+              </Link>
+              <Link
+                to="/seller"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#1E3A2F] px-5 py-3 text-sm font-bold text-[#1E3A2F] transition hover:bg-[#E8F2EC] dark:border-[#7FC79C] dark:text-[#DDEBDD] dark:hover:bg-[#223426]"
+              >
+                Become a creator
+                <Upload size={18} />
               </Link>
             </div>
-          </div>
 
-          {/* Global Marketplace */}
-          <div className="md:col-span-2 glass-card rounded-xl p-8 flex items-center justify-between group bg-white/70 dark:bg-[#1a1a1a]/70 backdrop-blur-xl border border-[#5d21df]/10">
-            <div className="space-y-2">
-              <h3 className="text-xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5]">Global Marketplace</h3>
-              <p className="text-sm text-[#5a5665] dark:text-[#a3a3a3]">Trade validated research modules & verified datasets.</p>
-            </div>
-            <Globe className="text-[#00e3fd] group-hover:rotate-12 transition-transform" size={40} />
-          </div>
-
-          {/* Peer Collaboration */}
-          <div className="glass-card rounded-xl p-8 flex flex-col justify-center gap-4 hover:bg-white dark:hover:bg-[#1a1a1a] transition-colors bg-white/70 dark:bg-[#1a1a1a]/70 backdrop-blur-xl border border-[#5d21df]/10">
-            <div className="w-12 h-12 bg-[#f1eefb] dark:bg-[#5d21df]/10 rounded-lg flex items-center justify-center">
-              <Users2 className="text-[#5d21df]" size={24} />
-            </div>
-            <h3 className="text-lg font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5]">Peer Hub</h3>
-            <p className="text-xs text-[#5a5665] dark:text-[#a3a3a3] font-medium">Real-time collaborative workspaces.</p>
-          </div>
-
-          {/* Milestone Tracking */}
-          <div className="glass-card rounded-xl p-8 flex flex-col justify-center gap-4 hover:bg-white dark:hover:bg-[#1a1a1a] transition-colors bg-white/70 dark:bg-[#1a1a1a]/70 backdrop-blur-xl border border-[#5d21df]/10">
-            <div className="w-12 h-12 bg-[#00e3fd]/10 rounded-lg flex items-center justify-center">
-              <Target className="text-[#006874]" size={24} />
-            </div>
-            <h3 className="text-lg font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5]">Milestones</h3>
-            <p className="text-xs text-[#5a5665] dark:text-[#a3a3a3] font-medium">Blockchain-verified academic credentials.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Marketplace Section - Matching Landing Page Theme */}
-      <section className="py-20 px-6 md:px-8 bg-white dark:bg-[#1a1a1a]">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-            <div className="space-y-2">
-              <h2 className="text-4xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] tracking-tight">Featured Projects</h2>
-              <p className="text-[#5a5665] dark:text-[#a3a3a3] font-light">Discover premium academic modules with AI-powered learning paths</p>
-            </div>
-            <Link to="/catalog" className="flex items-center gap-2 text-[#5d21df] dark:text-[#cdbdff] font-bold hover:gap-3 transition-all group">
-              View All Projects
-              <ArrowRight size={16} className="group-hover:translate-x-0.5" />
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-80 bg-[#f3f4f9] dark:bg-white/5 rounded-2xl animate-pulse" />
+            <div className="mt-8 grid max-w-2xl grid-cols-3 divide-x divide-[#E2DDD4] rounded-xl border border-[#E2DDD4] bg-white dark:divide-white/10 dark:border-white/10 dark:bg-[#171B16]">
+              {proofStats.map((stat) => (
+                <div key={stat.label} className="p-3.5">
+                  <p className="font-headline text-xl font-semibold text-[#1E3A2F] dark:text-[#7FC79C]">{stat.value}</p>
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-[#5C5851] dark:text-[#B8C2B1]">{stat.label}</p>
+                </div>
               ))}
             </div>
-          ) : featuredProjects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredProjects.map((project) => {
-                const badgeLevel = project.badge || 'beginner';
-                const badgeConfig = {
-                  beginner: { color: 'bg-[#948da2]', label: 'Silver', border: 'border-[#948da2]' },
-                  intermediate: { color: 'bg-[#f59e0b]', label: 'Gold', border: 'border-[#f59e0b]' },
-                  advanced: { color: 'bg-[#8b5cf6]', label: 'Diamond', border: 'border-[#8b5cf6]' },
-                };
-                const badge = badgeConfig[badgeLevel] || badgeConfig.beginner;
+          </div>
 
-                return (
-                  <Link
-                    key={project._id}
-                    to={`/project/${project._id}`}
-                    className="group p-6 rounded-2xl bg-[#f8f9fc] dark:bg-[#0a0a0a] border border-[#e2e0e7] dark:border-white/10 hover:border-[#5d21df]/50 dark:hover:border-[#5d21df]/30 transition-all hover:-translate-y-1.5 hover:shadow-2xl"
-                  >
-                    {/* Badge & Category */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className={`px-3 py-1.5 ${badge.color} text-white text-[10px] font-bold uppercase tracking-widest rounded-full`}>
-                        {badge.label}
-                      </span>
-                      {(project.techStack?.length > 0) && (
-                        <span className="text-[10px] font-bold text-[#5d21df] dark:text-[#cdbdff] uppercase">
-                          {project.techStack[0]}
-                        </span>
-                      )}
-                    </div>
+          <div className="relative">
+            <div className="rounded-2xl border border-[#D8D0C2] bg-[#FFFCF6] p-4 shadow-[0_18px_46px_rgba(28,26,23,0.09)] dark:border-white/10 dark:bg-[#171B16]">
+              <div className="relative min-h-[318px] overflow-hidden rounded-xl border border-[#E2DDD4] bg-[#F8F3E8] p-5 dark:border-white/10 dark:bg-[#10130F]">
+                <div className="absolute right-6 top-6 h-24 w-24 rounded-full bg-[#F6D89C] opacity-70 dark:bg-[#4B3515] dark:opacity-80" />
+                <div className="absolute bottom-6 right-12 h-16 w-16 rotate-6 rounded-2xl bg-[#DCEBE3] dark:bg-[#203727]" />
 
-                    {/* Content */}
-                    <h3 className="text-lg font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] mb-2 group-hover:text-[#5d21df] dark:group-hover:text-[#cdbdff] transition-colors line-clamp-2">
-                      {project.title}
-                    </h3>
-                    <p className="text-sm text-[#5a5665] dark:text-[#a3a3a3] leading-relaxed line-clamp-2 mb-4">
-                      {project.description}
-                    </p>
+                <div className="relative grid h-full gap-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-extrabold uppercase tracking-widest text-[#4B463E] dark:text-[#D9D2C7]">Build course map</p>
+                    <span className="rounded-full bg-[#FEF3DC] px-3 py-1 text-xs font-extrabold text-[#7A4704] ring-1 ring-[#D4840A]/15 dark:bg-[#4B3515] dark:text-[#FFD98A] dark:ring-[#F0C565]/20">
+                      Milestone 1 free
+                    </span>
+                  </div>
 
-                    {/* Tech Stack Tags */}
-                    {(project.techStack?.length > 1) && (
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {project.techStack.slice(1, 4).map((tag, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-[#f1eefb] dark:bg-[#5d21df]/10 text-[#5d21df] dark:text-[#cdbdff] text-[10px] rounded-md font-bold uppercase">
-                            {tag}
+                  <div className="mt-3 grid gap-3">
+                    {[
+                      { title: 'Context', copy: 'What are we building?' },
+                      { title: 'Milestone', copy: 'Ship one useful part.' },
+                      { title: 'Checkpoint', copy: 'Prove you understood it.' },
+                    ].map((step, index) => (
+                      <div key={step.title} className="grid grid-cols-[36px_1fr] gap-3">
+                        <div className="flex flex-col items-center">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1E3A2F] text-sm font-extrabold text-white shadow-sm dark:bg-[#2F6B49] dark:text-[#F7F2E8] dark:ring-1 dark:ring-[#9DE6B8]/35">
+                            {index + 1}
                           </span>
-                        ))}
+                          {index < 2 && <span className="h-10 w-px bg-[#D4840A]/40 dark:bg-[#7FC79C]/45" />}
+                        </div>
+                        <div className="rounded-xl border border-[#D8D0C2] bg-[#FFFCF6] p-3 dark:border-white/10 dark:bg-[#171B16]">
+                          <p className="font-headline text-lg font-semibold text-[#1C1A17] dark:text-[#F7F2E8]">{step.title}</p>
+                          <p className="mt-1 text-sm font-semibold text-[#4F493F] dark:text-[#D9D2C7]">{step.copy}</p>
+                        </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
 
-                    {/* CTA Button */}
-                    <div className="pt-4 border-t border-[#e2e0e7]/30 dark:border-white/10">
-                      <span className="inline-flex items-center gap-2 px-4 py-2 bg-[#5d21df] text-white text-xs font-bold rounded-lg group-hover:bg-[#6b3eea] transition-all">
-                        Explore Project
-                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {[
+                      { icon: Layers3, label: 'Roadmap' },
+                      { icon: MessageSquare, label: 'Hints' },
+                      { icon: Trophy, label: 'Proof' },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-[#D8D0C2] bg-[#FFFCF6] p-3 text-center dark:border-white/10 dark:bg-[#171B16]">
+                        <item.icon className="mx-auto text-[#1E3A2F] dark:text-[#9DE6B8]" size={18} />
+                        <p className="mt-2 text-xs font-extrabold text-[#4F493F] dark:text-[#D9D2C7]">{item.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-16 text-[#5a5665] dark:text-[#a3a3a3]">
-              <Terminal size={48} className="mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">No projects yet.</p>
-              <p className="text-sm">Be the first to <Link to="/auth" className="text-[#5d21df] underline">upload a project</Link>!</p>
-            </div>
-          )}
+          </div>
         </div>
       </section>
 
-      {/* AI Lab Engine Section */}
-      <section className="py-20 px-6 md:px-8 max-w-7xl mx-auto overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-8">
-            <div className="inline-block px-4 py-1 rounded bg-[#00e3fd]/10 border border-[#00e3fd]/20">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#006874] font-headline">Internal Interface</span>
-            </div>
-            <h2 className="text-5xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] leading-tight">
-              The AI Lab Engine: <br/>
-              <span className="text-[#5d21df]">Cognitive Synthesis</span>
-            </h2>
-            <p className="text-[#5a5665] dark:text-[#a3a3a3] text-lg font-light leading-relaxed">
-              Our reimagined laboratory interface allows you to monitor neural training in high-fidelity. Fine-tune your models with a suite of sophisticated light-themed diagnostic tools.
+      <section className="mx-auto max-w-7xl px-6 py-16 md:px-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-widest text-[#D4840A]">Featured build courses</p>
+            <h2 className="mt-2 font-headline text-4xl font-semibold text-[#1C1A17]">Pick a real outcome and start at milestone one.</h2>
+          </div>
+          <Link to="/catalog" className="inline-flex items-center gap-2 font-bold text-[#1E3A2F]">
+            Explore all builds <ArrowRight size={17} />
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="h-96 animate-pulse rounded-xl border border-[#E2DDD4] bg-white" />
+            ))}
+          </div>
+        ) : featuredProjects.length ? (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {featuredProjects.map((project) => (
+              <ProjectCourseCard
+                key={project._id}
+                project={project}
+                onOpen={() => navigate(`/project/${project._id}`)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-[#E2DDD4] bg-white p-10 text-center">
+            <BookOpen className="mx-auto text-[#1E3A2F]" size={42} />
+            <h3 className="mt-4 font-headline text-2xl font-semibold">No build courses published yet</h3>
+            <p className="mt-2 text-[#5C5851]">Creator courses will appear here after review.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white py-16">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 md:px-8 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-widest text-[#D4840A]">How it works</p>
+            <h2 className="mt-2 font-headline text-4xl font-semibold text-[#1C1A17]">A marketplace with a learning loop inside.</h2>
+            <p className="mt-4 leading-7 text-[#5C5851]">
+              Every course starts with a real repository, but the learner sees a guided path:
+              context first, then tasks, then checkpoints, then source access.
             </p>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase text-[#5a5665] dark:text-[#a3a3a3]">
-                  <span>Synaptic Connectivity</span>
-                  <span>88%</span>
-                </div>
-                <div className="h-1.5 w-full bg-[#e7e0eb] dark:bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full w-[88%] bg-gradient-to-r from-[#5d21df] to-[#00e3fd] shadow-[0_0_10px_rgba(93,33,223,0.3)]"></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase text-[#5a5665] dark:text-[#a3a3a3]">
-                  <span>Data Ingestion Speed</span>
-                  <span>1.2 PB/s</span>
-                </div>
-                <div className="h-1.5 w-full bg-[#e7e0eb] dark:bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full w-[65%] bg-[#00e3fd] shadow-[0_0_10px_rgba(0,227,253,0.3)]"></div>
-                </div>
-              </div>
-            </div>
-            <Link
-              to="/lab/demo"
-              className="flex items-center gap-3 px-6 py-3 border-2 border-[#5d21df] text-[#5d21df] dark:text-[#cdbdff] font-bold rounded-xl hover:bg-[#5d21df] hover:text-white dark:hover:bg-[#5d21df] transition-all"
-            >
-              <Activity size={20} />
-              <span>Initialize Lab Instance</span>
-            </Link>
           </div>
-
-          <div className="relative group">
-            <div className="absolute -inset-4 bg-gradient-to-br from-[#5d21df]/10 to-[#00e3fd]/10 rounded-2xl blur-2xl -z-10 group-hover:from-[#5d21df]/20 group-hover:to-[#00e3fd]/20 transition-all duration-700"></div>
-            <div className="glass-card rounded-2xl p-4 shadow-2xl border-white/50 bg-white/70 dark:bg-[#1a1a1a]/70 backdrop-blur-xl">
-              {/* Simulated Lab Interface UI */}
-              <div className="bg-[#ffffff] dark:bg-[#1a1a1a] rounded-xl overflow-hidden shadow-inner p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-[#e2e0e7]/30 dark:border-white/10 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                    <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-[#5a5665] dark:text-[#a3a3a3]">INSTANCE_ID: BB_AI_LAB_092</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#f3f4f9] dark:bg-white/5 rounded-lg p-4 border border-[#e2e0e7]/20 dark:border-white/10">
-                    <span className="text-[10px] font-bold text-[#5a5665] dark:text-[#a3a3a3] block mb-2 uppercase">Mean Loss</span>
-                    <span className="text-2xl font-headline font-bold text-[#5d21df]">0.0032</span>
-                  </div>
-                  <div className="bg-[#f3f4f9] dark:bg-white/5 rounded-lg p-4 border border-[#e2e0e7]/20 dark:border-white/10">
-                    <span className="text-[10px] font-bold text-[#5a5665] dark:text-[#a3a3a3] block mb-2 uppercase">Epochs</span>
-                    <span className="text-2xl font-headline font-bold text-[#006874]">1,400</span>
-                  </div>
-                </div>
-                <div className="h-32 bg-[#f3f4f9] dark:bg-white/5 rounded-lg p-2 flex items-end gap-1 overflow-hidden">
-                  {/* Minimal CSS Chart */}
-                  {[30, 45, 35, 60, 55, 80, 75, 95, 90].map((height, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex-1 rounded-t-sm ${idx === 8 ? 'bg-[#00e3fd]' : 'bg-[#5d21df]/80'}`}
-                      style={{ height: `${height}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Team: The Architects */}
-      <section className="py-20 px-6 md:px-8 bg-white dark:bg-[#1a1a1a]">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-4">
-            <h2 className="text-4xl font-headline font-bold text-[#1a1c1e] dark:text-[#e5e5e5] tracking-tight uppercase">The Architects</h2>
-            <p className="text-[#5a5665] dark:text-[#a3a3a3] font-light max-w-xl mx-auto">The visionary team crafting the interface between human potential and machine intelligence.</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
-            {teamMembers.map((member, idx) => (
-              <div key={idx} className="text-center space-y-4 group">
-                <div className="w-32 h-32 mx-auto relative">
-                  <div className="absolute inset-0 bg-[#5d21df]/10 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500"></div>
-                  <img
-                    alt={member.name}
-                    src={member.image}
-                    className="w-full h-full rounded-full object-cover relative z-10 filter grayscale group-hover:grayscale-0 transition-all duration-500"
-                  />
-                </div>
-                <div>
-                  <h4 className="font-headline font-bold text-lg text-[#1a1c1e] dark:text-[#e5e5e5]">{member.name}</h4>
-                  <p className="text-[10px] font-bold uppercase text-[#5d21df] tracking-widest">{member.role}</p>
-                </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { icon: Github, title: 'Creators upload', copy: 'A senior connects GitHub and selects the files that explain the project.' },
+              { icon: Compass, title: 'AI structures', copy: 'BrainBazaar turns the repo into milestones, tasks, and checkpoints.' },
+              { icon: CheckCircle2, title: 'Learners build', copy: 'Juniors complete the journey with hints, quizzes, and unlocks.' },
+            ].map((step) => (
+              <div key={step.title} className="rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-6">
+                <step.icon className="text-[#1E3A2F]" size={26} />
+                <h3 className="mt-5 font-headline text-2xl font-semibold">{step.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-[#5C5851]">{step.copy}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-6 md:px-8 pb-40">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative p-12 md:p-16 rounded-3xl bg-gradient-to-br from-[#5d21df] via-[#6b3eea] to-[#7c52e8] overflow-hidden text-center">
-            {/* Background decoration */}
-            <div className="absolute inset-0 opacity-30">
-              <div className="absolute top-0 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-              <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-[#00e3fd]/10 rounded-full blur-3xl"></div>
+      <section className="mx-auto max-w-7xl px-6 py-16 md:px-8">
+        <div className="mb-8">
+          <p className="text-sm font-bold uppercase tracking-widest text-[#D4840A]">Skill pathways</p>
+          <h2 className="mt-2 font-headline text-4xl font-semibold">Curated shelves for independent students.</h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          {paths.map((path) => (
+            <div key={path.title} className="rounded-xl border border-[#E2DDD4] bg-white p-6">
+              <h3 className="font-headline text-2xl font-semibold">{path.title}</h3>
+              <p className="mt-3 min-h-20 leading-7 text-[#5C5851]">{path.copy}</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {path.tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-[#E8F2EC] px-3 py-1 text-xs font-bold text-[#1E3A2F]">{tag}</span>
+                ))}
+              </div>
             </div>
-            
-            <div className="relative z-10">
-              <h2 className="text-4xl md:text-5xl font-headline font-bold text-white mb-6">
-                Ready to build something amazing?
-              </h2>
-              <p className="text-lg text-white/80 max-w-xl mx-auto mb-10">
-                Join thousands of students and builders already using BrainBazaar to learn and ship projects.
-              </p>
-              <Link
-                to="/catalog"
-                className="inline-flex items-center gap-3 bg-white text-[#5d21df] hover:bg-white/90 font-bold text-lg px-10 py-5 rounded-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:scale-95"
-              >
-                Get Started Free
-                <ArrowRight size={20} />
-              </Link>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
     </div>

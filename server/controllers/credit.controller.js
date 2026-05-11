@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Project from "../models/Project.js";
 import CreditTransaction from "../models/CreditTransaction.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -182,8 +183,49 @@ export const unlockMilestone = async (req, res) => {
   try {
     const { projectId, milestoneIndex } = req.body;
     const MILESTONE_COST = 70;
+    const targetMilestoneIndex = Number(milestoneIndex);
+
+    if (!projectId || !Number.isInteger(targetMilestoneIndex) || targetMilestoneIndex < 1) {
+      return res.status(400).json({
+        message: "Invalid milestone unlock request. The first milestone is already free.",
+      });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (targetMilestoneIndex >= (project.milestones?.length || 0)) {
+      return res.status(400).json({ message: "Milestone does not exist for this project." });
+    }
 
     const user = await User.findById(req.user._id);
+    const { default: UserProgress } = await import("../models/UserProgress.js");
+    let progress = await UserProgress.findOne({ user: req.user._id, project: projectId });
+
+    if (!progress) {
+      progress = await UserProgress.create({
+        user: req.user._id,
+        project: projectId,
+        isFreeTrial: true,
+        unlockedMilestones: 1,
+        messageLimits: {
+          freeTrialMessagesPerMilestone: project.trialSettings?.freeMessageLimit || 10,
+          purchasedMessagesPerMilestone: project.trialSettings?.purchasedMessageLimit || 20,
+        },
+      });
+    }
+
+    const requiredUnlockedCount = targetMilestoneIndex + 1;
+    if ((progress.unlockedMilestones || 1) >= requiredUnlockedCount) {
+      return res.json({
+        success: true,
+        message: `Milestone ${targetMilestoneIndex + 1} is already unlocked.`,
+        balance: user.credits || 0,
+        unlockedMilestones: progress.unlockedMilestones || 1,
+      });
+    }
 
     if ((user.credits || 0) < MILESTONE_COST) {
       return res.status(400).json({
@@ -203,25 +245,20 @@ export const unlockMilestone = async (req, res) => {
       type: 'consumption',
       amount: -MILESTONE_COST,
       balanceAfter: user.credits,
-      description: `Unlocked milestone ${milestoneIndex + 1}`,
+      description: `Unlocked milestone ${targetMilestoneIndex + 1}`,
       projectId: projectId,
-      milestoneNumber: milestoneIndex + 1,
+      milestoneNumber: targetMilestoneIndex + 1,
     });
 
-    // Update user progress to unlock the milestone
-    const { default: UserProgress } = await import("../models/UserProgress.js");
-    const progress = await UserProgress.findOne({ user: req.user._id, project: projectId });
-
-    if (progress) {
-      progress.unlockedMilestones = Math.max(progress.unlockedMilestones, milestoneIndex + 1);
-      await progress.save();
-    }
+    progress.unlockedMilestones = Math.max(progress.unlockedMilestones || 1, requiredUnlockedCount);
+    progress.lastActive = new Date();
+    await progress.save();
 
     res.json({
       success: true,
-      message: `Milestone ${milestoneIndex + 1} unlocked!`,
+      message: `Milestone ${targetMilestoneIndex + 1} unlocked!`,
       balance: user.credits,
-      unlockedMilestones: progress?.unlockedMilestones || milestoneIndex + 1,
+      unlockedMilestones: progress.unlockedMilestones,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

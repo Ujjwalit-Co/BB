@@ -1,21 +1,17 @@
 import React from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 
 export default function StepAI({ loading }) {
   return (
-    <div className="text-center py-16 space-y-6 animate-fadeIn">
-      <div className="relative w-24 h-24 mx-auto">
-        <div className="absolute inset-0 bg-indigo-500/20 rounded-full animate-ping" />
-        <div className="absolute inset-2 bg-purple-500/15 rounded-full animate-ping" style={{ animationDelay: '0.5s' }} />
-        <div className="relative w-24 h-24 bg-linear-to-br from-indigo-500/15 to-purple-500/15 rounded-full flex items-center justify-center">
-          <Sparkles size={40} className="text-indigo-400 animate-pulse" />
-        </div>
+    <div className="animate-fadeIn py-16 text-center">
+      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl border border-[#E2DDD4] bg-[#FEF3DC] text-[#D4840A] shadow-[0_16px_36px_rgba(212,132,10,0.15)]">
+        <Sparkles size={42} className="animate-pulse" />
       </div>
-      <h2 className="text-2xl font-bold">AI is Analyzing Your Project</h2>
-      <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm">
-        Generating milestones, summary, and description from your README and code files...
+      <h2 className="mt-7 font-headline text-4xl font-semibold">Drafting your roadmap</h2>
+      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-[#5C5851]">
+        AI is reading your README and selected files to shape milestones, learning objectives, and a creator-ready summary.
       </p>
-      {loading && <Loader2 className="animate-spin text-indigo-500 mx-auto" size={24} />}
+      {loading && <Loader2 className="mx-auto mt-6 animate-spin text-[#1E3A2F]" size={24} />}
     </div>
   );
 }

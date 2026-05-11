@@ -12,6 +12,7 @@ import MilestoneCompleteModal from '../components/lab/MilestoneCompleteModal';
 import OnboardingModal from '../components/lab/OnboardingModal';
 import CreditModal from '../components/lab/CreditModal';
 import UnlockConfirmationModal from '../components/lab/UnlockConfirmationModal';
+import { SidebarSkeleton, EditorSkeleton, AiPanelSkeleton } from '../components/lab/LabSkeleton';
 import { useParams, useNavigate } from 'react-router-dom';
 
 function MobileGuard() {
@@ -38,7 +39,7 @@ export default function Lab() {
     leftSidebarOpen, rightSidebarOpen,
     toggleLeftSidebar, toggleRightSidebar,
     quizOpen, closeQuiz, proceedToNextMilestone,
-    saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId,
+    saveProject, milestoneCompletedModalOpen, milestones, currentMilestoneId, markProjectComplete,
     showOnboarding, isLabLoading, isSandbox
   } = useLabStore();
   const { getProfile } = useAuthStore();
@@ -133,7 +134,13 @@ export default function Lab() {
     }
   };
 
-  const handleMilestoneProceed = () => {
+  const handleMilestoneProceed = async () => {
+    const idx = milestones.findIndex(m => m.id === currentMilestoneId);
+    if (idx === milestones.length - 1) {
+      await markProjectComplete();
+      useLabStore.setState({ milestoneCompletedModalOpen: false });
+      return;
+    }
     useLabStore.setState({ milestoneCompletedModalOpen: false });
     proceedToNextMilestone();
   };
@@ -155,7 +162,7 @@ export default function Lab() {
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
-              <FileSidebar />
+              {isLabLoading ? <SidebarSkeleton /> : <FileSidebar />}
             </motion.div>
           )}
         </AnimatePresence>
@@ -169,7 +176,7 @@ export default function Lab() {
 
         {/* Main Editor */}
         <div className="lab-editor-wrap">
-          <EditorPane />
+          {isLabLoading ? <EditorSkeleton /> : <EditorPane />}
         </div>
 
         {/* Right Sidebar */}
@@ -182,7 +189,7 @@ export default function Lab() {
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
             >
-              <AiPanel />
+              {isLabLoading ? <AiPanelSkeleton /> : <AiPanel />}
             </motion.div>
           )}
         </AnimatePresence>

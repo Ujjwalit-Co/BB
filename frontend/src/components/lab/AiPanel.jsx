@@ -3,14 +3,26 @@ import { ChevronsRight, Send, Check, X, Sparkles, ArrowRight, HelpCircle, AlertT
 import useLabStore from '../../store/useLabStore';
 import PaywallModal from './PaywallModal';
 
+const AiAvatar = () => (
+  <div className="w-5 h-5 rounded-sm bg-indigo-500/10 flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-sm">
+    <Sparkles size={11} className="text-indigo-500" />
+  </div>
+);
+
+const UserAvatar = () => (
+  <div className="w-5 h-5 rounded-sm bg-gray-500/10 flex items-center justify-center shrink-0 border border-gray-500/20 shadow-sm">
+    <User size={11} className="text-gray-500" />
+  </div>
+);
+
 export default function AiPanel() {
   const {
     aiMessages, aiSuggestion, isAiThinking, aiInput,
     toggleRightSidebar, acceptAiSuggestion, rejectAiSuggestion,
     addAiUserMessage, milestones, currentMilestoneId,
-    proceedToNextMilestone, showQuiz, setAiInput,
+    showQuiz, setAiInput,
     insufficientCreditsError, setInsufficientCreditsError,
-    isLabLoading, isSandbox, questionsRemaining,
+    isLabLoading, isSandbox,
     messageInfo, credits, projectData,
   } = useLabStore();
 
@@ -69,18 +81,6 @@ export default function AiPanel() {
     : 0;
   const showMilestonePrompt = milestoneProgress >= 0.7 && milestoneProgress < 1;
   const milestoneCompleted = milestoneProgress === 1;
-
-  const AiAvatar = () => (
-    <div className="w-5 h-5 rounded-sm bg-indigo-500/10 flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-sm">
-      <Sparkles size={11} className="text-indigo-500" />
-    </div>
-  );
-
-  const UserAvatar = () => (
-    <div className="w-5 h-5 rounded-sm bg-gray-500/10 flex items-center justify-center shrink-0 border border-gray-500/20 shadow-sm">
-      <User size={11} className="text-gray-500" />
-    </div>
-  );
 
   return (
     <aside className="flex flex-col h-full bg-[var(--lab-surface)] border-l border-[var(--lab-border)] w-full overflow-hidden transition-colors duration-300">

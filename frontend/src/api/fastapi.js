@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8080';
+const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:8000';
 
 const fastapi = axios.create({
   baseURL: FASTAPI_URL,

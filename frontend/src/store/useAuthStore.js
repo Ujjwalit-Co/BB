@@ -104,8 +104,9 @@ const useAuthStore = create(
         try {
           const response = await authApi.updateProfile(profileData);
           if (response.success) {
-            set({ user: response.user });
-            return { success: true, user: response.user };
+            const nextUser = { ...get().user, ...(response.user || {}), ...profileData };
+            set({ user: nextUser });
+            return { success: true, user: nextUser };
           }
         } catch (error) {
           return { 

@@ -106,6 +106,8 @@ export const verifyPayment = async (req, res) => {
       await UserProgress.findOneAndUpdate(
         { user: userId, project: projectId },
         {
+          user: userId,
+          project: projectId,
           isFreeTrial: false,
           unlockedMilestones: project.milestones.length,
           lastActive: new Date(),

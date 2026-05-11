@@ -13,7 +13,25 @@
 export function normalizeProject(project) {
   if (!project) return null;
 
+  const imageUrl = (image) => {
+    if (!image) return '';
+    if (typeof image === 'string') return image;
+    return image.secure_url || image.url || image.src || '';
+  };
+
+  const screenshots = (project.screenshots || project.images || project.gallery || [])
+    .map(imageUrl)
+    .filter(Boolean);
+
+  const thumbnailUrl = imageUrl(project.thumbnail);
+  const normalizedScreenshots = screenshots.length > 0
+    ? screenshots
+    : (thumbnailUrl ? [thumbnailUrl] : []);
+
   return {
+    // Preserve all other fields first so normalized fields below win.
+    ...project,
+
     // ID mapping
     id: project._id || project.id,
     _id: project._id || project.id,
@@ -36,6 +54,7 @@ export function normalizeProject(project) {
     // Badge/tags mapping
     badge: project.badge || 'beginner',
     tags: project.tags || [],
+    reviewCount: project.reviewCount ?? project.reviews?.length ?? 0,
     
     // Price fields (ensure string format for display)
     price: project.price,
@@ -63,8 +82,12 @@ export function normalizeProject(project) {
       })) || []
     })) || [],
     
-    // Thumbnail
-    thumbnail: project.thumbnail,
+    // Media
+    thumbnail: thumbnailUrl
+      ? { ...(typeof project.thumbnail === 'object' ? project.thumbnail : {}), secure_url: thumbnailUrl }
+      : project.thumbnail,
+    thumbnailUrl,
+    screenshots: normalizedScreenshots,
     
     // Seller
     seller: project.seller,
@@ -72,9 +95,6 @@ export function normalizeProject(project) {
     // Metadata
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
-    
-    // Preserve all other fields
-    ...project
   };
 }
 

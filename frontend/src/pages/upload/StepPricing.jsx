@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, Image, Loader2, Check, Plus, AlertCircle } from 'lucide-react';
-import { TECH_OPTIONS, PRICE_TIERS, getBadgeFromPrice, getPriceError } from './constants';
+import React, { useRef, useState } from 'react';
+import { AlertCircle, Check, Loader2, Plus, Upload, X } from 'lucide-react';
+import { getBadgeFromPrice, getPriceError, PRICE_TIERS, TECH_OPTIONS } from './constants';
 import { projectsExpressApi } from '../../api/express';
 
 export default function StepPricing({ projectData, setProjectData, techInput, setTechInput, addTech, removeTech }) {
@@ -10,45 +10,42 @@ export default function StepPricing({ projectData, setProjectData, techInput, se
 
   const priceError = getPriceError(projectData.price);
   const currentTier = getBadgeFromPrice(projectData.price);
+  const images = projectData.uploadedImages || [];
 
-  // Auto-sync badge whenever price changes
-  const handlePriceChange = (val) => {
-    const price = parseInt(val) || 0;
-    setProjectData(prev => ({
-      ...prev,
-      price,
-      badge: getBadgeFromPrice(price),
-    }));
+  const handlePriceChange = (value) => {
+    const price = parseInt(value, 10) || 0;
+    setProjectData((prev) => ({ ...prev, price, badge: getBadgeFromPrice(price) }));
   };
 
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
+  const handleImageUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-    
-    const oversized = files.filter(f => f.size > 5242880);
+
+    const oversized = files.filter((file) => file.size > 5242880);
     if (oversized.length > 0) {
-      alert("Error: Images must be smaller than 5MB each.");
+      alert('Images must be smaller than 5MB each.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    const maxTotal = 5 - (projectData.uploadedImages || []).length;
+    const maxTotal = 5 - images.length;
     if (files.length > maxTotal) {
-      alert(`You can upload up to ${maxTotal} more images (max 5 total).`);
+      alert(`You can upload up to ${maxTotal} more images.`);
       return;
     }
+
     setUploadingImages(true);
     try {
-      const res = await projectsExpressApi.uploadImages(files);
-      if (res.success) {
-        setProjectData(prev => ({
+      const response = await projectsExpressApi.uploadImages(files);
+      if (response.success) {
+        setProjectData((prev) => ({
           ...prev,
-          uploadedImages: [...(prev.uploadedImages || []), ...res.images],
-          thumbnailUrl: prev.thumbnailUrl || res.images[0]?.secure_url || '',
+          uploadedImages: [...(prev.uploadedImages || []), ...response.images],
+          thumbnailUrl: prev.thumbnailUrl || response.images[0]?.secure_url || '',
         }));
       }
-    } catch (err) {
-      console.error('Upload failed:', err);
+    } catch (error) {
+      console.error('Upload failed:', error);
       alert('Image upload failed. Please try again.');
     } finally {
       setUploadingImages(false);
@@ -56,10 +53,10 @@ export default function StepPricing({ projectData, setProjectData, techInput, se
     }
   };
 
-  const removeImage = (idx) => {
-    setProjectData(prev => {
+  const removeImage = (index) => {
+    setProjectData((prev) => {
       const updated = [...(prev.uploadedImages || [])];
-      updated.splice(idx, 1);
+      updated.splice(index, 1);
       return {
         ...prev,
         uploadedImages: updated,
@@ -69,81 +66,77 @@ export default function StepPricing({ projectData, setProjectData, techInput, se
   };
 
   const toggleTech = (tech) => {
-    if (projectData.techStack.includes(tech)) {
-      removeTech(tech);
-    } else {
-      setProjectData(prev => ({
-        ...prev,
-        techStack: [...prev.techStack, tech],
-      }));
-    }
+    if (projectData.techStack.includes(tech)) removeTech(tech);
+    else setProjectData((prev) => ({ ...prev, techStack: [...prev.techStack, tech] }));
   };
 
-  const images = projectData.uploadedImages || [];
-
   return (
-    <div className="space-y-8 animate-fadeIn">
-      <h2 className="text-2xl font-bold">Set Pricing & Details</h2>
+    <div className="animate-fadeIn space-y-8 text-[#1C1A17]">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#D4840A]">Course packaging</p>
+        <h2 className="mt-2 font-headline text-3xl font-semibold">Set pricing and details</h2>
+      </div>
 
-      {/* Price Section */}
-      <div className="space-y-3">
-        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pricing</label>
-        <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="space-y-4">
+        <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Pricing strategy</label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {Object.entries(PRICE_TIERS).map(([key, tier]) => (
-            <div key={key} className={`p-3 rounded-xl border-2 text-center transition-all ${
-              currentTier === key
-                ? 'border-indigo-500 bg-indigo-500/5 shadow-md shadow-indigo-500/10'
-                : 'border-slate-200 dark:border-white/10 opacity-50'
-            }`}>
-              <div className="text-lg mb-0.5">{tier.label.split(' ')[0]}</div>
-              <div className="text-xs font-bold">{tier.label.split(' ')[1]}</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">₹{tier.min}–₹{tier.max}</div>
+            <div
+              key={key}
+              className={`rounded-2xl border-2 p-4 text-center transition-all ${
+                currentTier === key
+                  ? 'border-[#1E3A2F] bg-[#E8F2EC] shadow-lg shadow-[#1E3A2F]/10'
+                  : 'border-[#E2DDD4] bg-white opacity-70'
+              }`}
+            >
+              <div className="font-headline text-xl font-semibold text-[#1E3A2F]">{tier.label}</div>
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[#5C5851]">Course tier</div>
+              <div className="mt-2 text-xs font-bold text-[#D4840A]">Rs {tier.min}-{tier.max}</div>
             </div>
           ))}
         </div>
         <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">₹</span>
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-[#9B9589]">Rs</span>
           <input
             type="number"
             value={projectData.price}
-            onChange={(e) => handlePriceChange(e.target.value)}
-            className={`w-full pl-8 pr-4 py-3 bg-slate-50 dark:bg-white/5 border rounded-xl focus:outline-none focus:ring-2 transition-all text-lg font-bold ${
-              priceError ? 'border-red-400 focus:ring-red-500/50' : 'border-slate-200 dark:border-white/10 focus:ring-indigo-500/50'
+            onChange={(event) => handlePriceChange(event.target.value)}
+            className={`w-full rounded-xl border bg-[#F6F4EF] p-4 pl-12 font-headline text-3xl font-semibold transition-all focus:outline-none ${
+              priceError ? 'border-[#C0392B] focus:ring-4 focus:ring-[#C0392B]/10' : 'border-[#E2DDD4] focus:border-[#1E3A2F] focus:ring-4 focus:ring-[#1E3A2F]/10'
             }`}
           />
         </div>
         {priceError && (
-          <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle size={12} /> {priceError}</p>
+          <p className="flex items-center gap-1.5 text-sm font-bold text-[#C0392B]"><AlertCircle size={15} /> {priceError}</p>
         )}
       </div>
 
-      {/* Download Link */}
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Download Link</label>
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Build source link</label>
         <input
           required
           value={projectData.downloadLink}
-          onChange={(e) => setProjectData(prev => ({ ...prev, downloadLink: e.target.value }))}
-          placeholder="GitHub URL or Google Drive link"
-          className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm"
+          onChange={(event) => setProjectData((prev) => ({ ...prev, downloadLink: event.target.value }))}
+          placeholder="GitHub repository URL or Google Drive link"
+          className="w-full rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-4 text-sm font-semibold focus:border-[#1E3A2F] focus:outline-none"
         />
       </div>
 
-      {/* Image Upload */}
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-          Project Images <span className="font-normal normal-case">(up to 5, max 5MB each, first is thumbnail)</span>
+      <div className="space-y-3">
+        <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">
+          Gallery <span className="font-medium normal-case">(up to 5 images, first is thumbnail)</span>
         </label>
-        <div className="flex flex-wrap gap-3">
-          {images.map((img, idx) => (
-            <div key={idx} className="relative group w-28 h-28 rounded-xl overflow-hidden border-2 border-slate-200 dark:border-white/10">
-              <img src={img.secure_url} alt="" className="w-full h-full object-cover" />
-              {idx === 0 && (
-                <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-indigo-500 text-white text-[9px] font-bold rounded">THUMB</span>
+        <div className="flex flex-wrap gap-4">
+          {images.map((image, index) => (
+            <div key={`${image.secure_url}-${index}`} className="group relative h-28 w-28 overflow-hidden rounded-2xl border border-[#E2DDD4]">
+              <img src={image.secure_url} alt="" className="h-full w-full object-cover" />
+              {index === 0 && (
+                <span className="absolute left-1.5 top-1.5 rounded-lg bg-[#1E3A2F] px-2 py-1 text-[9px] font-bold tracking-widest text-white">COVER</span>
               )}
               <button
-                onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                type="button"
+                onClick={() => removeImage(index)}
+                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#C0392B] text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
               >
                 <X size={12} />
               </button>
@@ -151,63 +144,64 @@ export default function StepPricing({ projectData, setProjectData, techInput, se
           ))}
           {images.length < 5 && (
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingImages}
-              className="w-28 h-28 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-500 hover:border-indigo-500/50 transition-all"
+              className="flex h-28 w-28 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#E2DDD4] text-[#9B9589] transition-all hover:border-[#1E3A2F] hover:bg-[#E8F2EC] hover:text-[#1E3A2F]"
             >
-              {uploadingImages ? <Loader2 size={24} className="animate-spin" /> : <><Upload size={20} /><span className="text-[10px] mt-1 font-medium">Upload</span></>}
+              {uploadingImages ? <Loader2 size={24} className="animate-spin" /> : <><Upload size={20} /><span className="mt-1 text-[10px] font-bold uppercase tracking-wider">Add</span></>}
             </button>
           )}
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
       </div>
 
-      {/* Tech Stack Bubbles */}
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Tech Stack</label>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {TECH_OPTIONS.map(tech => {
+      <div className="space-y-3">
+        <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-[#D4840A]">Tech stack tags</label>
+        <div className="flex flex-wrap gap-2">
+          {TECH_OPTIONS.map((tech) => {
             const isSelected = projectData.techStack.includes(tech);
             return (
               <button
                 key={tech}
+                type="button"
                 onClick={() => toggleTech(tech)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                className={`rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 ${
                   isSelected
-                    ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/25 scale-105'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-500'
+                    ? 'scale-105 bg-[#1E3A2F] text-white shadow-lg shadow-[#1E3A2F]/20'
+                    : 'bg-[#F0EDE6] text-[#5C5851] hover:bg-[#E8F2EC] hover:text-[#1E3A2F]'
                 }`}
               >
-                {isSelected && <Check size={12} className="inline mr-1" />}{tech}
+                {isSelected && <Check size={12} className="mr-1 inline" />}{tech}
               </button>
             );
           })}
           <button
+            type="button"
             onClick={() => setShowCustomTech(!showCustomTech)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-indigo-500/10 hover:text-indigo-500 transition-all border border-dashed border-slate-300 dark:border-white/20"
+            className="rounded-lg border border-dashed border-[#E2DDD4] bg-[#F0EDE6] px-4 py-2 text-xs font-bold text-[#5C5851] transition-all hover:border-[#1E3A2F] hover:text-[#1E3A2F]"
           >
-            <Plus size={12} className="inline mr-1" />Other
+            <Plus size={12} className="mr-1 inline" />Other
           </button>
         </div>
         {showCustomTech && (
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <input
               value={techInput}
-              onChange={(e) => setTechInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTech())}
-              placeholder="Type custom tech..."
-              className="flex-1 p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              onChange={(event) => setTechInput(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), addTech())}
+              placeholder="Enter custom technology..."
+              className="flex-1 rounded-xl border border-[#E2DDD4] bg-[#F6F4EF] p-4 text-sm font-semibold focus:border-[#1E3A2F] focus:outline-none"
             />
-            <button onClick={addTech} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">Add</button>
+            <button type="button" onClick={addTech} className="rounded-xl bg-[#1E3A2F] px-6 py-4 text-sm font-bold text-white transition hover:bg-[#2D5C42]">Add</button>
           </div>
         )}
-        {/* Selected custom techs (not in TECH_OPTIONS) */}
-        {projectData.techStack.filter(t => !TECH_OPTIONS.includes(t)).length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {projectData.techStack.filter(t => !TECH_OPTIONS.includes(t)).map(tech => (
-              <span key={tech} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-500 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+        {projectData.techStack.filter((tech) => !TECH_OPTIONS.includes(tech)).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {projectData.techStack.filter((tech) => !TECH_OPTIONS.includes(tech)).map((tech) => (
+              <span key={tech} className="flex items-center gap-2 rounded-lg bg-[#E8F2EC] px-4 py-2 text-xs font-bold text-[#1E3A2F]">
                 {tech}
-                <button onClick={() => removeTech(tech)} className="hover:text-red-400"><X size={12} /></button>
+                <button type="button" onClick={() => removeTech(tech)} className="text-[#9B9589] hover:text-[#C0392B]"><X size={12} /></button>
               </span>
             ))}
           </div>

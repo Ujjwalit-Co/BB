@@ -1,4 +1,6 @@
 import User from "../models/User.js";
+import Certificate from "../models/Certificate.js";
+import Project from "../models/Project.js";
 import jwt from "jsonwebtoken";
 
 // Generate JWT Token
@@ -7,6 +9,19 @@ const generateToken = (id) => {
     expiresIn: "30d",
   });
 };
+
+const serializeUser = (user, extras = {}) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  bio: user.bio || "",
+  avatar: user.avatar,
+  credits: user.credits,
+  purchasedProjects: user.purchasedProjects,
+  certificates: extras.certificates || user.certificates || [],
+  achievements: extras.achievements || user.achievements || [],
+});
 
 // =====================
 // REGISTER - Regular User
@@ -32,13 +47,7 @@ export const registerUser = async (req, res) => {
       success: true,
       message: "User registered successfully",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        credits: user.credits,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     res.status(500).json({ error: error.message, message: "User registration failed" });
@@ -69,13 +78,7 @@ export const registerSeller = async (req, res) => {
       success: true,
       message: "Seller registered successfully",
       token,
-      user: {
-        id: seller._id,
-        name: seller.name,
-        email: seller.email,
-        role: seller.role,
-        credits: seller.credits,
-      },
+      user: serializeUser(seller),
     });
   } catch (error) {
     res.status(500).json({ error: error.message, message: "Seller registration failed" });
@@ -126,14 +129,7 @@ export const loginUser = async (req, res) => {
       success: true,
       message: "Login Successfully",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        credits: user.credits,
-        purchasedProjects: user.purchasedProjects,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -167,17 +163,26 @@ export const getCurrentUser = async (req, res) => {
       await user.save();
     }
 
+    const certificates = await Certificate.find({ user: user._id })
+      .populate("project", "title thumbnail")
+      .sort({ issuedAt: -1 })
+      .lean();
+
+    const publishedProjectCount = user.role === "seller"
+      ? await Project.countDocuments({ seller: user._id, isPublished: true })
+      : 0;
+    const achievements = publishedProjectCount >= 5
+      ? [{
+          type: "creator_5_projects",
+          title: "Creator Certificate",
+          description: "Published 5 project courses on BrainBazaar.",
+          earnedAt: new Date(),
+        }]
+      : [];
+
     res.json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        credits: user.credits,
-        avatar: user.avatar,
-        purchasedProjects: user.purchasedProjects,
-      },
+      user: serializeUser(user, { certificates, achievements }),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -189,7 +194,7 @@ export const getCurrentUser = async (req, res) => {
 // =====================
 export const updateProfile = async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, bio } = req.body;
     const user = await User.findById(req.user._id);
 
     if (!user) {
@@ -198,18 +203,14 @@ export const updateProfile = async (req, res) => {
 
     if (name) user.name = name;
     if (email) user.email = email;
+    if (bio !== undefined) user.bio = bio;
 
     await user.save();
 
     res.json({
       success: true,
       message: "Profile updated successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

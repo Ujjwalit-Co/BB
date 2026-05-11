@@ -2,7 +2,62 @@ import Project from "../models/Project.js";
 import { generateMilestones, generateProjectSummary, analyzeComplexity, enhanceReadmeForTutor, enhanceSummary as enhanceSummaryAI, enhanceMilestones as enhanceMilestonesAI, generateQuizzesForProjectBg } from "../services/ai.service.js";
 import { streamRepositoryZip } from "../services/github.service.js";
 import User from "../models/User.js";
+import Purchase from "../models/Purchase.js";
 import mongoose from "mongoose";
+
+const CATEGORY_ALIASES = {
+  "Trending in Market": "trending",
+  "Hackathon Critic Favorites": "hackathon",
+  "Last Minute Helpers": "last-minute",
+  Trending: "trending",
+  Hackathon: "hackathon",
+  "Quick Builds": "last-minute",
+};
+
+function normalizeProjectPayload(payload = {}) {
+  const normalized = { ...payload };
+
+  if (normalized.category && CATEGORY_ALIASES[normalized.category]) {
+    normalized.category = CATEGORY_ALIASES[normalized.category];
+  }
+
+  if (Array.isArray(normalized.screenshots)) {
+    normalized.screenshots = normalized.screenshots
+      .map((image) => {
+        if (!image) return "";
+        if (typeof image === "string") return image;
+        return image.secure_url || image.url || image.src || "";
+      })
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(normalized.uploadedImages)) {
+    normalized.screenshots = normalized.uploadedImages
+      .map((image) => image?.secure_url || image?.url || "")
+      .filter(Boolean);
+    delete normalized.uploadedImages;
+  }
+
+  if (Array.isArray(normalized.milestones)) {
+    normalized.milestones = normalized.milestones.map((milestone, idx) => ({
+      ...milestone,
+      number: milestone.number || idx + 1,
+      title: milestone.title || milestone.name || `Milestone ${idx + 1}`,
+      description: milestone.description || milestone.objective || "",
+      estimatedTime: milestone.estimatedTime || milestone.estimated_time || "2 hours",
+      steps: Array.isArray(milestone.steps)
+        ? milestone.steps.map((step, stepIdx) => ({
+            ...step,
+            stepNumber: step.stepNumber || step.step_number || stepIdx + 1,
+            title: step.title || step.name || `Step ${stepIdx + 1}`,
+            description: step.description || step.instructions || "",
+          }))
+        : [],
+    }));
+  }
+
+  return normalized;
+}
 
 // Get public seller profile and their projects
 export const getSellerProfile = async (req, res) => {
@@ -33,7 +88,7 @@ export const getAllProjects = async (req, res) => {
     
     let query = { isPublished: true };
     
-    if (category) query.category = category;
+    if (category) query.category = CATEGORY_ALIASES[category] || category;
     if (badge) query.badge = badge;
     if (tech) query.techStack = { $in: [tech] };
     if (search) {
@@ -61,23 +116,11 @@ export const getAllProjects = async (req, res) => {
 export const getProjectById = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
-      .populate("seller", "name email avatar");
+      .populate("seller", "name email avatar")
+      .populate("reviews.user", "name avatar");
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
-    }
-
-    // Check for broken quizzes and trigger background generation if any milestone lacks a valid quiz
-    const needsQuizFix = project.milestones.some(ms => 
-      !ms.quiz || 
-      !ms.quiz.questions || 
-      ms.quiz.questions.length === 0 ||
-      ms.quiz.questions.some(q => q.correctAnswer === undefined && q.correct_answer === undefined)
-    );
-
-    if (needsQuizFix) {
-      console.log(`[project.controller] Project ${project._id} has broken/missing quizzes. Triggering background fix...`);
-      generateQuizzesForProjectBg(project._id).catch(err => console.error("Bg Quiz Fix Error:", err));
     }
 
     // Increment views using findByIdAndUpdate to avoid full document save
@@ -90,11 +133,65 @@ export const getProjectById = async (req, res) => {
   }
 };
 
+// Submit or update a learner review
+export const rateProject = async (req, res) => {
+  try {
+    const { rating, comment = "" } = req.body;
+    const numericRating = Number(rating);
+
+    if (!Number.isFinite(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (project.seller.toString() === req.user._id.toString()) {
+      return res.status(403).json({ message: "Creators cannot review their own course" });
+    }
+
+    const hasAccess = Number(project.price) === 0
+      || req.user.role === "admin"
+      || await Purchase.hasPurchased(req.user._id, project._id);
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Unlock the course before leaving a rating" });
+    }
+
+    const existingReview = project.reviews.find((review) => review.user.toString() === req.user._id.toString());
+    if (existingReview) {
+      existingReview.rating = numericRating;
+      existingReview.comment = String(comment).trim().slice(0, 500);
+      existingReview.createdAt = new Date();
+    } else {
+      project.reviews.push({
+        user: req.user._id,
+        rating: numericRating,
+        comment: String(comment).trim().slice(0, 500),
+      });
+    }
+
+    const total = project.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0);
+    project.rating = project.reviews.length ? Number((total / project.reviews.length).toFixed(1)) : 0;
+    await project.save();
+
+    const updatedProject = await Project.findById(project._id)
+      .populate("seller", "name email avatar")
+      .populate("reviews.user", "name avatar");
+
+    res.json({ success: true, project: updatedProject });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Create project (seller only)
 export const createProject = async (req, res) => {
   try {
     const projectData = {
-      ...req.body,
+      ...normalizeProjectPayload(req.body),
       seller: req.user._id,
     };
 
@@ -130,7 +227,7 @@ export const updateProject = async (req, res) => {
       return res.status(403).json({ message: "Not authorized to update this project" });
     }
 
-    project = await Project.findByIdAndUpdate(req.params.id, req.body, {
+    project = await Project.findByIdAndUpdate(req.params.id, normalizeProjectPayload(req.body), {
       new: true,
       runValidators: true,
     });
@@ -167,20 +264,25 @@ export const getMilestoneQuiz = async (req, res) => {
     const { generateQuiz } = await import("../services/ai.service.js");
     const quizData = await generateQuiz(project, ms, msNum);
     
-    if (quizData && quizData.quiz) {
+    if (quizData && (quizData.quiz || quizData.questions)) {
+      const rawQuestions = quizData.questions || quizData.quiz || [];
+      
       // Normalize questions to match schema and ensure consistency
-      const normalizedQuestions = quizData.quiz.map(q => {
-        let correctIdx = q.correctAnswer ?? q.correct_answer;
-        let finalIdx = 0;
+      const normalizedQuestions = rawQuestions.map(q => {
+        if (!q || typeof q !== 'object') return null;
+
+        const options = Array.isArray(q.options) 
+          ? q.options.map(opt => String(opt).trim()) 
+          : [];
         
-        // Ensure options exist and are strings
-        const options = (q.options || []).map(opt => String(opt).trim());
+        let correctIdx = q.correctAnswer ?? q.correct_answer ?? q.answer;
+        let finalIdx = 0;
         
         if (typeof correctIdx === 'number') {
           finalIdx = correctIdx;
         } else if (typeof correctIdx === 'string') {
           const trimmedCorrect = correctIdx.trim();
-          // 1. Try exact match
+          // 1. Try exact match in options
           const exactIdx = options.indexOf(trimmedCorrect);
           if (exactIdx !== -1) {
             finalIdx = exactIdx;
@@ -200,17 +302,24 @@ export const getMilestoneQuiz = async (req, res) => {
           }
         }
         
+        // Final bounds check
+        if (finalIdx < 0 || finalIdx >= options.length) {
+          finalIdx = 0;
+        }
+        
         return {
-          question: q.question,
-          options: options,
+          question: String(q.question || "Conceptual Question").trim(),
+          options: options.length >= 2 ? options : ["Option A", "Option B", "Option C", "Option D"],
           correctAnswer: finalIdx,
-          explanation: q.explanation || ""
+          explanation: String(q.explanation || "").trim()
         };
-      });
+      }).filter(Boolean);
 
-      ms.quiz = { questions: normalizedQuestions };
-      await project.save();
-      return res.json({ questions: normalizedQuestions });  // Changed from quiz to questions
+      if (normalizedQuestions.length > 0) {
+        ms.quiz = { questions: normalizedQuestions };
+        await project.save();
+        return res.json({ questions: normalizedQuestions });
+      }
     }
     
     res.status(500).json({ error: "Failed to generate dynamic quiz" });
@@ -273,6 +382,9 @@ export const submitForReview = async (req, res) => {
     project.submittedAt = new Date();
     await project.save();
 
+    // Generate missing quizzes during seller-controlled review flow, not public page views.
+    generateQuizzesForProjectBg(project._id).catch(err => console.error("Bg Quiz Error:", err));
+
     res.json({ success: true, message: "Project submitted for review", project });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -301,7 +413,7 @@ export const generateAIContent = async (req, res) => {
     // Flatten into a clean response the frontend can directly consume
     res.json({
       success: true,
-      readme: overview.readme || '',
+      readme: overview.readme || readme,
       summary: overview.summary || readme.substring(0, 300),
       milestones: overview.milestones || [],
       complexity,

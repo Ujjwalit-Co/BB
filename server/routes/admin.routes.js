@@ -6,6 +6,9 @@ import {
   requestChanges,
   getAllProjectsAdmin,
   getAdminStats,
+  updateCertificateTemplate,
+  getCreatorCertTemplates,
+  updateCreatorCertTemplate,
 } from "../controllers/admin.controller.js";
 import { protect, authorize } from "../middlewares/auth.middleware.js";
 
@@ -21,5 +24,8 @@ router.post("/:projectId/decline", declineProject);
 router.post("/:projectId/request-changes", requestChanges);
 router.get("/all-projects", getAllProjectsAdmin);
 router.get("/stats", getAdminStats);
+router.put("/:projectId/certificate-template", updateCertificateTemplate);
+router.get("/creator-cert-templates", getCreatorCertTemplates);
+router.put("/creator-cert-templates/:tier", updateCreatorCertTemplate);
 
 export default router;

@@ -1,61 +1,69 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Share2, Globe } from 'lucide-react';
+import { BookOpen, Github, GraduationCap, Upload } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#f8f9fc] dark:bg-[#0a0a0a] py-20 px-8 border-t border-[#e2e0e7]/30 dark:border-white/10">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-        {/* Brand Section */}
-        <div className="col-span-1 md:col-span-2 space-y-6">
-          <Link to="/" className="text-3xl font-headline font-bold bg-gradient-to-r from-[#5d21df] to-[#00e3fd] bg-clip-text text-transparent">
+    <footer className="border-t border-[#E2DDD4] bg-white px-8 py-16 text-[#1C1A17] dark:border-white/10 dark:bg-[#121210] dark:text-[#EDE9E3]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 md:grid-cols-4">
+        <div className="space-y-6 md:col-span-2">
+          <Link to="/" className="font-headline text-3xl font-semibold text-[#1E3A2F] dark:text-[#EDE9E3]">
             BrainBazaar
           </Link>
-          <p className="text-[#5a5665] dark:text-[#a3a3a3] font-light max-w-sm">
-            Decentralizing intellectual advancement through curated AI integration and collaborative academic commerce.
+          <p className="max-w-sm leading-7 text-[#5C5851] dark:text-[#9B9589]">
+            Real student projects turned into milestone-based learning journeys.
+            Learn by doing. Earn by building.
           </p>
           <div className="flex gap-4">
-            <div className="w-10 h-10 rounded-full border border-[#e2e0e7] dark:border-white/10 flex items-center justify-center text-[#5a5665] dark:text-[#a3a3a3] hover:text-[#5d21df] hover:border-[#5d21df] transition-all cursor-pointer">
-              <Share2 size={20} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2DDD4] text-[#5C5851] transition-all hover:border-[#1E3A2F] hover:text-[#1E3A2F] dark:border-white/10 dark:text-[#9B9589]">
+              <Github size={20} />
             </div>
-            <div className="w-10 h-10 rounded-full border border-[#e2e0e7] dark:border-white/10 flex items-center justify-center text-[#5a5665] dark:text-[#a3a3a3] hover:text-[#5d21df] hover:border-[#5d21df] transition-all cursor-pointer">
-              <Globe size={20} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2DDD4] text-[#5C5851] transition-all hover:border-[#1E3A2F] hover:text-[#1E3A2F] dark:border-white/10 dark:text-[#9B9589]">
+              <GraduationCap size={20} />
             </div>
           </div>
         </div>
 
-        {/* Resources */}
         <div className="space-y-4">
-          <h5 className="font-headline font-bold text-sm uppercase tracking-widest text-[#1a1c1e] dark:text-[#e5e5e5]">Resources</h5>
-          <ul className="space-y-2 text-sm text-[#5a5665] dark:text-[#a3a3a3] font-light">
-            <li><Link to="/catalog" className="hover:text-[#5d21df] transition-colors">Documentation</Link></li>
-            <li><Link to="/lab/demo" className="hover:text-[#5d21df] transition-colors">API Reference</Link></li>
-            <li><Link to="/catalog" className="hover:text-[#5d21df] transition-colors">Market Guidelines</Link></li>
-            <li><a href="#" className="hover:text-[#5d21df] transition-colors">Whitepaper</a></li>
+          <h5 className="text-sm font-bold uppercase tracking-widest text-[#1C1A17] dark:text-[#EDE9E3]">Learners</h5>
+          <ul className="space-y-3 text-sm font-semibold text-[#5C5851] dark:text-[#9B9589]">
+            <li>
+              <Link to="/catalog" className="inline-flex items-center gap-2 hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">
+                <BookOpen size={15} /> Explore builds
+              </Link>
+            </li>
+            <li><Link to="/dashboard" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">My learning</Link></li>
+            <li><Link to="/buy-credits" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">AI credits</Link></li>
           </ul>
         </div>
 
-        {/* Company */}
         <div className="space-y-4">
-          <h5 className="font-headline font-bold text-sm uppercase tracking-widest text-[#1a1c1e] dark:text-[#e5e5e5]">Company</h5>
-          <ul className="space-y-2 text-sm text-[#5a5665] dark:text-[#a3a3a3] font-light">
-            <li><Link to="/" className="hover:text-[#5d21df] transition-colors">Our Vision</Link></li>
-            <li><a href="#" className="hover:text-[#5d21df] transition-colors">Careers</a></li>
-            <li><a href="#" className="hover:text-[#5d21df] transition-colors">Ethics Board</a></li>
-            <li><Link to="/auth" className="hover:text-[#5d21df] transition-colors">Privacy</Link></li>
+          <h5 className="text-sm font-bold uppercase tracking-widest text-[#1C1A17] dark:text-[#EDE9E3]">Creators</h5>
+          <ul className="space-y-3 text-sm font-semibold text-[#5C5851] dark:text-[#9B9589]">
+            <li><Link to="/seller" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">Creator Studio</Link></li>
+            <li>
+              <Link to="/seller/upload" className="inline-flex items-center gap-2 hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">
+                <Upload size={15} /> Publish course
+              </Link>
+            </li>
+            <li><Link to="/auth" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">Sign in</Link></li>
           </ul>
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-[#e2e0e7]/30 dark:border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-[10px] font-bold text-[#5a5665] dark:text-[#a3a3a3] uppercase tracking-widest">
-          © {new Date().getFullYear()} BrainBazaar Intelligence Systems. All Rights Reserved.
-        </p>
-        <div className="flex gap-6 text-[10px] font-bold text-[#5a5665] dark:text-[#a3a3a3] uppercase tracking-widest">
-          <a href="#" className="hover:text-[#5d21df]">Status</a>
-          <a href="#" className="hover:text-[#5d21df]">Legal</a>
-          <a href="#" className="hover:text-[#5d21df]">Contact</a>
+      <div className="mx-auto mt-14 flex max-w-7xl flex-col items-center justify-between gap-4 border-t border-[#E2DDD4] pt-8 md:flex-row dark:border-white/10">
+        <div className="text-center md:text-left">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#5C5851] dark:text-[#9B9589]">
+            © {new Date().getFullYear()} Ujjwalit Technologies Pvt. Ltd. All rights reserved.
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[#5C5851] dark:text-[#9B9589]">
+            BrainBazaar is a proprietary platform developed by team <a href="https://ujjwalit.co.in" target="_blank" rel="noopener noreferrer" className="text-[#1E3A2F] hover:underline dark:text-[#EDE9E3]">Ujjwalit</a>.
+          </p>
+        </div>
+        <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-[#5C5851] dark:text-[#9B9589]">
+          <Link to="/" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">Vision</Link>
+          <Link to="/catalog" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">Marketplace</Link>
+          <Link to="/auth" className="hover:text-[#1E3A2F] dark:hover:text-[#EDE9E3]">Account</Link>
         </div>
       </div>
     </footer>

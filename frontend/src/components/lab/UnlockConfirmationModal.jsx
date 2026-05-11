@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Coins, X, Check, ArrowRight } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
@@ -10,7 +10,7 @@ export default function UnlockConfirmationModal() {
 
   return (
     <div className="lab-modal-overlay">
-      <motion.div 
+      <Motion.div 
         className="lab-confirm-modal"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -51,7 +51,7 @@ export default function UnlockConfirmationModal() {
             Cancel
           </button>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, X, Zap, ArrowRight, Check, Flame, Sparkles, ThumbsUp, RotateCcw, AlertCircle } from 'lucide-react';
+import { Trophy, X, Zap, ArrowRight, Check, Flame, Sparkles, RotateCcw, AlertCircle } from 'lucide-react';
 import useLabStore from '../../store/useLabStore';
 
 export default function QuizModal({ onComplete, onClose }) {
@@ -12,7 +12,7 @@ export default function QuizModal({ onComplete, onClose }) {
   const [selected, setSelected] = useState(null);
   const [phase, setPhase] = useState('question'); // 'question' | 'summary' | 'failed'
   const [showCorrect, setShowCorrect] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(30);
 
   const questions = currentQuiz?.questions || [];
   const question = questions[currentQ];
@@ -49,7 +49,7 @@ export default function QuizModal({ onComplete, onClose }) {
         setCurrentQ(q => q + 1);
         setSelected(null);
         setShowCorrect(false);
-        setTimeLeft(questions[currentQ + 1].timeLimit || 15);
+        setTimeLeft(questions[currentQ + 1].timeLimit || 30);
       } else {
         const finalCorrectCount = isCorrect ? correctCount + 1 : correctCount;
         if (finalCorrectCount >= passingScore) {
@@ -73,7 +73,7 @@ export default function QuizModal({ onComplete, onClose }) {
     setSelected(null);
     setPhase('question');
     setShowCorrect(false);
-    setTimeLeft(questions[0].timeLimit || 15);
+    setTimeLeft(questions[0].timeLimit || 30);
   };
 
   if (!question && phase === 'question') {
@@ -89,7 +89,7 @@ export default function QuizModal({ onComplete, onClose }) {
     );
   }
 
-  const timerPercent = (timeLeft / (question?.timeLimit || 15)) * 100;
+  const timerPercent = (timeLeft / (question?.timeLimit || 30)) * 100;
 
   return (
     <AnimatePresence>

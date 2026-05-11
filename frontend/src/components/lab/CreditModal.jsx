@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Coins, X, ArrowRight, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useLabStore from '../../store/useLabStore';
@@ -17,7 +17,7 @@ export default function CreditModal() {
 
   return (
     <div className="lab-modal-overlay">
-      <motion.div 
+      <Motion.div 
         className="lab-confirm-modal"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -58,7 +58,7 @@ export default function CreditModal() {
             Maybe Later
           </button>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

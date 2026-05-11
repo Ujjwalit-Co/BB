@@ -1,67 +1,57 @@
 import React, { useState } from 'react';
-import { Github, Check, Lock, Globe } from 'lucide-react';
+import { Check, Github, Globe, Lock } from 'lucide-react';
 
 export default function StepGithub({ githubConnected, githubUsername, onConnect }) {
   const [accessLevel, setAccessLevel] = useState('public');
 
   return (
-    <div className="text-center py-10 space-y-8 animate-fadeIn">
-      <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/10">
-        <Github size={40} className="text-indigo-400" />
+    <div className="animate-fadeIn py-8 text-center">
+      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-[#F0EDE6] text-[#1E3A2F]">
+        <Github size={40} />
       </div>
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Connect Your GitHub Account</h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm">
-          We'll use your GitHub account to access your repositories and project files.
-        </p>
-      </div>
+      <h2 className="mt-6 font-headline text-4xl font-semibold">Connect GitHub</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-[#5C5851]">
+        Choose how BrainBazaar can read your repositories for this project-course draft.
+      </p>
 
       {githubConnected ? (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium inline-flex items-center gap-2">
+        <div className="mt-8 inline-flex items-center gap-2 rounded-xl border border-[#2A9D6F]/20 bg-[#E8F2EC] px-5 py-4 font-bold text-[#1E3A2F]">
           <Check size={20} /> Connected as @{githubUsername}
         </div>
       ) : (
-        <div className="space-y-6 max-w-lg mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Choose access level</p>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => setAccessLevel('public')}
-              className={`relative p-5 rounded-xl border-2 text-left transition-all duration-200 group hover:scale-[1.02] ${
-                accessLevel === 'public'
-                  ? 'border-indigo-500 bg-indigo-500/5 shadow-lg shadow-indigo-500/10'
-                  : 'border-slate-200 dark:border-white/10 hover:border-indigo-500/50'
-              }`}
-            >
-              <Globe size={24} className={`mb-3 ${accessLevel === 'public' ? 'text-indigo-400' : 'text-slate-400'}`} />
-              <h4 className="font-bold text-sm mb-1">Public Repos Only</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Access only your public repositories</p>
-              {accessLevel === 'public' && (
-                <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
-                  <Check size={12} className="text-white" />
-                </div>
-              )}
-            </button>
-            <button
-              onClick={() => setAccessLevel('all')}
-              className={`relative p-5 rounded-xl border-2 text-left transition-all duration-200 group hover:scale-[1.02] ${
-                accessLevel === 'all'
-                  ? 'border-indigo-500 bg-indigo-500/5 shadow-lg shadow-indigo-500/10'
-                  : 'border-slate-200 dark:border-white/10 hover:border-indigo-500/50'
-              }`}
-            >
-              <Lock size={24} className={`mb-3 ${accessLevel === 'all' ? 'text-indigo-400' : 'text-slate-400'}`} />
-              <h4 className="font-bold text-sm mb-1">Public + Private</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Access all repositories including private</p>
-              {accessLevel === 'all' && (
-                <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
-                  <Check size={12} className="text-white" />
-                </div>
-              )}
-            </button>
+        <div className="mx-auto mt-8 max-w-xl space-y-6">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#9B9589]">Access level</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              { key: 'public', title: 'Public repos', copy: 'Access only public repositories.', icon: Globe },
+              { key: 'all', title: 'Public + private', copy: 'Access all repositories including private.', icon: Lock },
+            ].map((option) => {
+              const selected = accessLevel === option.key;
+              return (
+                <button
+                  type="button"
+                  key={option.key}
+                  onClick={() => setAccessLevel(option.key)}
+                  className={`relative rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 ${
+                    selected ? 'border-[#1E3A2F] bg-[#E8F2EC] shadow-[0_12px_28px_rgba(30,58,47,0.12)]' : 'border-[#E2DDD4] bg-white hover:border-[#1E3A2F]/35'
+                  }`}
+                >
+                  <option.icon size={24} className={selected ? 'text-[#1E3A2F]' : 'text-[#9B9589]'} />
+                  <h4 className="mt-4 font-bold">{option.title}</h4>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-[#5C5851]">{option.copy}</p>
+                  {selected && (
+                    <div className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-[#1E3A2F] text-white">
+                      <Check size={13} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <button
+            type="button"
             onClick={() => onConnect(accessLevel)}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold py-3.5 px-8 rounded-xl inline-flex items-center gap-2 transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#1E3A2F] px-8 py-3.5 font-bold text-white shadow-[0_10px_24px_rgba(30,58,47,0.18)] transition hover:bg-[#2D5C42]"
           >
             <Github size={20} /> Connect GitHub
           </button>

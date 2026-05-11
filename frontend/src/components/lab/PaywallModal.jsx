@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Lock, CheckCircle, Sparkles, X, Coins, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useLabStore from '../../store/useLabStore';
@@ -17,7 +17,7 @@ export default function PaywallModal({
   isMessageLimit = false,
 }) {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  useAuthStore();
   const { credits } = useLabStore();
 
   const handleBuyNow = () => {
@@ -31,7 +31,7 @@ export default function PaywallModal({
 
   return (
     <div className="lab-modal-overlay">
-      <motion.div
+      <Motion.div
         className="lab-paywall-modal"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -198,7 +198,7 @@ export default function PaywallModal({
         <div className="paywall-guarantee text-center text-xs text-slate-500 dark:text-slate-400 mt-4">
           <p>🔒 Secure payment • 7-day money-back guarantee</p>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

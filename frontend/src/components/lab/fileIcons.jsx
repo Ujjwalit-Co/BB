@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { DiJavascript1, DiHtml5, DiCss3, DiReact, DiPython, DiRust } from 'react-icons/di';
 import { SiTypescript, SiJson, SiMarkdown, SiSvg } from 'react-icons/si';
 import { VscFile } from 'react-icons/vsc';

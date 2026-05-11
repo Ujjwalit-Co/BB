@@ -48,6 +48,91 @@ function getAuthUser() {
 
 let fileCounter = 10;
 
+function normalizeWebContainerPath(path = '') {
+  return String(path)
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+    .filter(part => part !== '.' && part !== '..')
+    .join('/');
+}
+
+function buildWebContainerTree(filesToMount = []) {
+  const root = {};
+
+  filesToMount.forEach((file) => {
+    const safePath = normalizeWebContainerPath(file.name);
+    if (!safePath) return;
+
+    const parts = safePath.split('/');
+    let cursor = root;
+
+    parts.forEach((part, index) => {
+      const isLeaf = index === parts.length - 1;
+
+      if (isLeaf) {
+        cursor[part] = {
+          file: {
+            contents: file.content || '',
+          },
+        };
+        return;
+      }
+
+      if (!cursor[part]) {
+        cursor[part] = { directory: {} };
+      }
+      cursor = cursor[part].directory;
+    });
+  });
+
+  return root;
+}
+
+function splitShellCommand(command = '') {
+  const tokens = [];
+  let current = '';
+  let quote = null;
+
+  for (const char of command.trim()) {
+    if ((char === '"' || char === "'") && !quote) {
+      quote = char;
+      continue;
+    }
+    if (char === quote) {
+      quote = null;
+      continue;
+    }
+    if (/\s/.test(char) && !quote) {
+      if (current) tokens.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+const ignoredWorkspaceFilePattern = /(^|\/)(node_modules|\.git|dist|build|coverage|__pycache__|\.pytest_cache|\.venv|venv|env|\.next|\.turbo|\.cache)(\/|$)|(\.pyc|\.pyo|\.log|\.map)$/i;
+
+function getPersistableFiles(files = []) {
+  return files
+    .filter((file) => {
+      const name = String(file.name || file.filename || '').replace(/\\/g, '/');
+      if (!name || ignoredWorkspaceFilePattern.test(name)) return false;
+      return String(file.content || '').length <= 160000;
+    })
+    .slice(0, 80)
+    .map((file) => ({
+      filename: String(file.name || file.filename).replace(/\\/g, '/'),
+      content: String(file.content || ''),
+      language: file.language || 'text',
+    }));
+}
+
 const useLabStore = create((set, get) => ({
   // Project Metadata
   projectId: null,
@@ -110,7 +195,248 @@ const useLabStore = create((set, get) => ({
   aiSuggestion: null,
   aiInput: '',
 
+  // WebContainer & Terminal State
+  webcontainerInstance: null,
+  isWebContainerLoading: false,
+  webcontainerStatus: 'idle',
+  webcontainerError: '',
+  webcontainerPreviewUrl: '',
+  webcontainerServerProcess: null,
+  activeTerminalProcess: null,
+  isTerminalRunning: false,
+
   // --- ACTIONS ---
+
+  bootWebContainer: async () => {
+    const state = get();
+    if (state.webcontainerInstance || state.isWebContainerLoading) return state.webcontainerInstance;
+
+    set({
+      isWebContainerLoading: true,
+      webcontainerStatus: 'booting',
+      webcontainerError: '',
+      loadingStatus: 'Booting WebContainer...',
+      loadingProgress: 20
+    });
+    
+    try {
+      // Dynamic import to prevent crash if package not yet installed
+      const { WebContainer } = await import('@webcontainer/api');
+      const instance = await WebContainer.boot();
+      
+      set({
+        webcontainerInstance: instance,
+        isWebContainerLoading: false,
+        webcontainerStatus: 'ready',
+        loadingProgress: 40
+      });
+      console.log('[WebContainer] Booted successfully');
+      
+      // Setup listener for server ready (Vite/Node)
+      instance.on('server-ready', (port, url) => {
+        console.log(`[WebContainer] Server ready at ${url} on port ${port}`);
+        set({
+          webcontainerPreviewUrl: url,
+          webcontainerStatus: 'serving',
+          bottomPanelOpen: true,
+          bottomPanelTab: 'preview'
+        });
+      });
+
+      return instance;
+    } catch (error) {
+      console.error('[WebContainer] Failed to boot:', error);
+      set({
+        isWebContainerLoading: false,
+        webcontainerStatus: 'offline',
+        webcontainerError: error?.message || 'WebContainer could not start in this browser.'
+      });
+      return null;
+    }
+  },
+
+  mountFiles: async (filesToMount) => {
+    const { webcontainerInstance } = get();
+    if (!webcontainerInstance) return;
+
+    const fileTree = buildWebContainerTree(filesToMount);
+    await webcontainerInstance.mount(fileTree);
+    console.log('[WebContainer] Files mounted');
+  },
+
+  ensureWebContainerDir: async (filePath) => {
+    const { webcontainerInstance } = get();
+    if (!webcontainerInstance) return;
+
+    const safePath = normalizeWebContainerPath(filePath);
+    const parts = safePath.split('/');
+    parts.pop();
+    if (parts.length === 0) return;
+
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      try {
+        await webcontainerInstance.fs.mkdir(current);
+      } catch (error) {
+        if (!String(error?.message || '').toLowerCase().includes('exist')) {
+          throw error;
+        }
+      }
+    }
+  },
+
+  writeFileToWebContainer: async (file) => {
+    const { webcontainerInstance, ensureWebContainerDir } = get();
+    if (!webcontainerInstance || !file?.name) return;
+
+    const safePath = normalizeWebContainerPath(file.name);
+    if (!safePath) return;
+
+    await ensureWebContainerDir(safePath);
+    await webcontainerInstance.fs.writeFile(safePath, file.content || '');
+  },
+
+  startWebContainerPreviewServer: async () => {
+    const {
+      webcontainerInstance,
+      webcontainerServerProcess,
+      writeFileToWebContainer,
+      ensureWebContainerDir,
+      files,
+      addConsoleLog,
+    } = get();
+
+    if (!webcontainerInstance || webcontainerServerProcess) return;
+
+    for (const file of files) {
+      await writeFileToWebContainer(file);
+    }
+
+    const serverPath = '.brainbazaar/preview-server.mjs';
+    const serverSource = `
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, normalize, join } from 'node:path';
+
+const types = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp'
+};
+
+createServer(async (req, res) => {
+  try {
+    const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    const requested = urlPath === '/' ? '/index.html' : urlPath;
+    const safePath = normalize(requested).replace(/^(\\.\\.[/\\\\])+/, '');
+    const filePath = join('/', safePath).slice(1);
+    const body = await readFile(filePath);
+    res.writeHead(200, { 'content-type': types[extname(filePath)] || 'text/plain; charset=utf-8' });
+    res.end(body);
+  } catch {
+    res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+    res.end('<!doctype html><title>BrainBazaar Preview</title><body style="font-family:system-ui;padding:32px"><h1>No preview file found</h1><p>Create an index.html file or run a JavaScript file from the console.</p></body>');
+  }
+}).listen(3000, '0.0.0.0');
+`;
+
+    await ensureWebContainerDir(serverPath);
+    await webcontainerInstance.fs.writeFile(serverPath, serverSource);
+
+    const process = await webcontainerInstance.spawn('node', [serverPath]);
+    set({ webcontainerServerProcess: process, webcontainerStatus: 'serving' });
+
+    process.output.pipeTo(new WritableStream({
+      write(data) {
+        addConsoleLog(String(data).trim(), 'info', 'javascript');
+      }
+    })).catch(() => {});
+
+    process.exit.then(() => {
+      set({ webcontainerServerProcess: null, webcontainerStatus: webcontainerInstance ? 'ready' : 'offline' });
+    });
+  },
+
+  runShellCommand: async (command) => {
+    const {
+      webcontainerInstance,
+      writeFileToWebContainer,
+      files,
+      addConsoleLog,
+    } = get();
+
+    const trimmed = command.trim();
+    if (!trimmed) return;
+
+    set({ bottomPanelOpen: true, bottomPanelTab: 'console', consoleMode: 'shell' });
+    addConsoleLog(`$ ${trimmed}`, 'command', 'shell');
+
+    if (!webcontainerInstance) {
+      addConsoleLog('WebContainer is not ready yet. Refresh the lab or check that Vite is serving with COOP/COEP headers.', 'error', 'shell');
+      return;
+    }
+
+    for (const file of files) {
+      await writeFileToWebContainer(file);
+    }
+
+    set({ isTerminalRunning: true });
+
+    let process;
+    try {
+      try {
+        process = await webcontainerInstance.spawn('jsh', ['-c', trimmed]);
+      } catch (shellError) {
+        const [binary, ...args] = splitShellCommand(trimmed);
+        if (!binary) throw shellError;
+        process = await webcontainerInstance.spawn(binary, args);
+      }
+
+      set({ activeTerminalProcess: process });
+
+      process.output.pipeTo(new WritableStream({
+        write(data) {
+          const text = String(data);
+          if (text.trim()) addConsoleLog(text, 'log', 'shell');
+        }
+      })).catch(() => {});
+
+      const exitCode = await process.exit;
+      if (exitCode === 0) {
+        addConsoleLog(`Command finished with exit code 0`, 'success', 'shell');
+      } else {
+        addConsoleLog(`Command exited with code ${exitCode}`, 'error', 'shell');
+      }
+    } catch (error) {
+      addConsoleLog(error.message, 'error', 'shell');
+    } finally {
+      if (get().activeTerminalProcess === process) {
+        set({ activeTerminalProcess: null, isTerminalRunning: false });
+      }
+    }
+  },
+
+  stopTerminalProcess: () => {
+    const { activeTerminalProcess, addConsoleLog } = get();
+    if (!activeTerminalProcess) return;
+
+    try {
+      activeTerminalProcess.kill();
+      addConsoleLog('Process stopped.', 'warning', 'shell');
+    } catch (error) {
+      addConsoleLog(error.message, 'error', 'shell');
+    } finally {
+      set({ activeTerminalProcess: null, isTerminalRunning: false });
+    }
+  },
 
   startSandbox: () => {
     const initialFiles = [{
@@ -159,6 +485,7 @@ const useLabStore = create((set, get) => ({
       bottomPanelOpen: true,
       bottomPanelTab: 'preview',
       livePreviewHtml: '',
+      webcontainerPreviewUrl: '',
       isLabLoading: false,
     });
     get().saveProject(); // Trigger initial compile
@@ -200,11 +527,19 @@ const useLabStore = create((set, get) => ({
       return;
     }
 
-    set({ isLabLoading: true, loadingStatus: 'Loading project...', loadingProgress: 10 });
+    set({
+      isLabLoading: true,
+      loadingStatus: 'Loading project...',
+      loadingProgress: 10,
+      webcontainerPreviewUrl: '',
+      webcontainerError: ''
+    });
 
     try {
-      // Fetch project data from Express API (MongoDB)
-      // Use plain fetch to avoid any interceptor issues with auth tokens
+      // 1. Boot WebContainer in parallel
+      const containerPromise = get().bootWebContainer();
+
+      // 2. Fetch project data from Express API (MongoDB)
       const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
       const url = `${EXPRESS_API_URL}/projects/${projectId}`;
 
@@ -214,10 +549,9 @@ const useLabStore = create((set, get) => ({
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          // Only add auth header if we have a valid token
           ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {}),
         },
-        credentials: 'include', // Include cookies if any
+        credentials: 'include',
       });
 
       if (!fetchResponse.ok) {
@@ -227,7 +561,7 @@ const useLabStore = create((set, get) => ({
       const response = await fetchResponse.json();
       const projectData = response.project || response;
 
-      set({ loadingProgress: 30, loadingStatus: 'Preparing code files...' });
+      set({ loadingProgress: 30, loadingStatus: 'Preparing roadmap...' });
 
       // Transform project milestones to Lab format
       const labMilestones = (projectData.milestones || []).map((m, idx) => {
@@ -241,7 +575,6 @@ const useLabStore = create((set, get) => ({
           hints: s.hints,
         })) || [];
 
-        // Inject Assessment step if not present
         if (!steps.some(s => s.title.toLowerCase().includes('assessment'))) {
           steps.push({
             id: `m${idx + 1}-assessment`,
@@ -257,38 +590,34 @@ const useLabStore = create((set, get) => ({
           description: m.description,
           status: idx === 0 ? 'active' : 'locked',
           steps,
-          quiz: m.quiz, // Store quiz data inside the milestone for easier access
+          quiz: m.quiz,
         };
       });
 
-      set({ loadingProgress: 60, loadingStatus: 'Initializing environment...' });
+      set({ loadingProgress: 60, loadingStatus: 'Initializing engines...' });
 
-      // Preload Pyodide
-      try {
-        const { loadPyodide: loadPyo } = await import('pyodide');
-        const pyodideInstance = await loadPyo({
-          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
-        });
-        set({ pyodide: pyodideInstance });
-      } catch (error) {
-        console.error('Failed to preload Pyodide:', error);
-      }
+      // Preload Pyodide & Wait for WebContainer
+      const [container] = await Promise.all([
+        containerPromise,
+        get().loadPyodide().catch(e => console.error('Pyodide fail:', e))
+      ]);
 
-      set({ loadingProgress: 85, loadingStatus: 'Setting up workspace...' });
+      set({ loadingProgress: 85, loadingStatus: 'Mounting file system...' });
 
-      // Build editor files from the project's stored codeFiles
-      const extLangMap = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', html: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python' };
-      let initialFiles = [];
-
-      // For Project-Based Learning, we start from scratch with only a README
-      initialFiles = [{
+      // Build initial files
+      const initialFiles = [{
         id: 'f1',
         name: 'README.md',
         language: 'markdown',
         isDirty: false,
         status: 'clean',
-        content: `# ${projectData.title}\n\n${projectData.description || ''}\n\n${projectData.readme || ''}\n\n---\n**Goal:** Follow the milestones and instructions to build this project.`,
+        content: `# ${projectData.title}\n\n${projectData.description || ''}\n\n${projectData.readme || ''}\n\n---\n**Goal:** Follow the milestones to build this project.`,
       }];
+
+      // Mount to WebContainer if available
+      if (container) {
+        await get().mountFiles(initialFiles);
+      }
 
       const savedEnv = localStorage.getItem('userEnvironment');
       const userEnvironment = savedEnv ? JSON.parse(savedEnv) : null;
@@ -300,30 +629,21 @@ const useLabStore = create((set, get) => ({
         creditsFromAuth = authData?.state?.user?.credits || 0;
       } catch (e) {}
 
-      // Load user progress to get message limits
+      // Load user progress
       let messageInfo = { used: 0, limit: 10, remaining: 10, canSendWithoutCredits: true };
       try {
-        const { default: axios } = await import('axios');
-        const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
-        const token = getAuthToken();
-        
-        if (token) {
-          const { data: progressData } = await axios.get(`${EXPRESS_API_URL}/users/${authData?.state?.user?._id}/progress/${projectData._id || projectData.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
+        if (getAuthToken()) {
+          const progressData = await progressApi.getProgress(projectData._id || projectData.id);
           if (progressData.success && progressData.messageInfo) {
             messageInfo = progressData.messageInfo;
           }
         }
-      } catch (err) {
-        console.log('No progress found, using default message limits');
-      }
+      } catch (err) {}
 
       set({
         projectId: projectData._id || projectData.id,
         projectName: projectData.title,
-        projectData: projectData, // Store full context to avoid 404s in AI chat
+        projectData: projectData,
         files: initialFiles,
         milestones: labMilestones,
         currentMilestoneId: labMilestones[0]?.id || null,
@@ -337,7 +657,7 @@ const useLabStore = create((set, get) => ({
         aiMessages: [
           {
             role: 'ai',
-            content: `Welcome to **${projectData.title}**! I'll guide you through building this project step by step. ${labMilestones.length > 0 ? "Let's start with Milestone 1." : "Explore the code files on the left sidebar."}`,
+            content: `Welcome to **${projectData.title}**! I'll guide you through building this project step by step.`,
           },
         ],
         aiSuggestion: null,
@@ -351,6 +671,7 @@ const useLabStore = create((set, get) => ({
         newFileDialogOpen: false,
         fileToDelete: null,
         livePreviewHtml: '',
+        webcontainerPreviewUrl: '',
         insufficientCreditsError: false,
         isPurchased,
         isSandbox: false,
@@ -361,28 +682,7 @@ const useLabStore = create((set, get) => ({
       });
     } catch (error) {
       console.error('Failed to load project:', error);
-      
-      let errorMessage = error.message;
-      if (error.response?.status === 404) {
-        errorMessage = `Project not found (ID: ${projectId}). It may have been deleted or the ID is invalid.`;
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Server error loading project. Please try again later.';
-      } else if (!error.response) {
-        errorMessage = 'Network error: Could not connect to backend. Is the server running?';
-      }
-
-      console.error(`[loadRealProject Error] ${errorMessage}`);
-
-      set({
-        isLabLoading: false,
-        loadingProgress: 0,
-        aiMessages: [
-          {
-            role: 'ai',
-            content: `❌ Error loading project: ${errorMessage}`,
-          },
-        ],
-      });
+      set({ isLabLoading: false });
     }
   },
 
@@ -403,11 +703,10 @@ const useLabStore = create((set, get) => ({
     )
   })),
 
-  createFile: (filename, content = '') => {
+  createFile: async (filename, content = '') => {
     if (!filename || !filename.trim()) return;
     const name = filename.trim();
-    const { files, openTabs } = get();
-    // Prevent duplicates
+    const { files, openTabs, webcontainerInstance, writeFileToWebContainer } = get();
     if (files.some(f => f.name === name)) return;
 
     const ext = name.split('.').pop()?.toLowerCase();
@@ -421,6 +720,11 @@ const useLabStore = create((set, get) => ({
       status: content ? 'unsaved' : 'clean',
       content: content,
     };
+
+    // Sync to WebContainer
+    if (webcontainerInstance) {
+      await writeFileToWebContainer(newFile);
+    }
 
     set({
       files: [...files, newFile],
@@ -468,17 +772,25 @@ const useLabStore = create((set, get) => ({
   }),
 
   // Save — marks all dirty files as clean, flashes checkmark, and updates preview
-  saveProject: () => {
-    const state = get();
-    // Re-compile HTML to livePreviewHtml on save
-    const newPreviewHtml = state.compilePreviewHtml(state);
+  saveProject: async () => {
+    const { files, webcontainerInstance, compilePreviewHtml, writeFileToWebContainer } = get();
+    
+    // Sync dirty files to WebContainer
+    if (webcontainerInstance) {
+      for (const file of files) {
+        if (file.status === 'unsaved') {
+          await writeFileToWebContainer(file);
+        }
+      }
+    }
+
+    const newPreviewHtml = compilePreviewHtml(get());
 
     set((s) => ({
       files: s.files.map(f => f.status === 'unsaved' ? { ...f, isDirty: false, status: 'clean' } : f),
       saveFlash: true,
       livePreviewHtml: newPreviewHtml
     }));
-    // Reset flash after animation
     setTimeout(() => set({ saveFlash: false }), 1500);
   },
 
@@ -493,7 +805,7 @@ const useLabStore = create((set, get) => ({
   toggleNewFileDialog: () => set((s) => ({ newFileDialogOpen: !s.newFileDialogOpen })),
 
   // Console
-  consoleMode: 'javascript', // 'python' | 'javascript' - tracks which runtime is active
+  consoleMode: 'javascript', // 'python' | 'javascript' | 'shell'
   pythonLogs: [],
   jsLogs: [],
 
@@ -524,31 +836,23 @@ const useLabStore = create((set, get) => ({
     const state = get();
     // Return immediately if already loaded or loading
     if (state.pyodide) {
-      console.log('[Pyodide] Already loaded from preload');
       return state.pyodide;
     }
     if (state.isPyodideLoading) {
-      console.log('[Pyodide] Already loading...');
       return null;
     }
 
     set({ isPyodideLoading: true });
-    get().addConsoleLog('Loading Pyodide (Python runtime)...', 'info');
-
     try {
-      // Dynamically import pyodide from node_modules
       const { loadPyodide: loadPyo } = await import('pyodide');
       const pyodideInstance = await loadPyo({
-        // Use the local pyodide package from node_modules
-        indexURL: '/pyodide/',
+        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
       });
 
       set({ pyodide: pyodideInstance, isPyodideLoading: false });
-      get().addConsoleLog('Python runtime loaded!', 'success');
       return pyodideInstance;
     } catch (error) {
       set({ isPyodideLoading: false });
-      get().addConsoleLog(`Failed to load Pyodide: ${error.message}`, 'error');
       throw error;
     }
   },
@@ -557,46 +861,32 @@ const useLabStore = create((set, get) => ({
     const state = get();
     let pyodideInstance = state.pyodide;
 
-    // Load Pyodide if not already loaded
     if (!pyodideInstance) {
       pyodideInstance = await get().loadPyodide();
     }
 
-    if (!pyodideInstance) {
-      get().addConsoleLog('Pyodide not loaded', 'error');
-      return;
-    }
+    if (!pyodideInstance) return;
 
-    // Set up stdout capture for print() statements
     pyodideInstance.setStdout({
       batched: (output) => {
-        get().addConsoleLog(output, 'log');
+        get().addConsoleLog(output, 'log', 'python');
       },
     });
 
     try {
-      // Run the Python code
       const result = await pyodideInstance.runPythonAsync(code);
-      
-      // If there's a return value, display it
-      if (result !== undefined && result !== null) {
-        const resultType = typeof result;
-        if (resultType !== 'function') {
-          get().addConsoleLog(String(result), 'log');
-        }
+      if (result !== undefined && result !== null && typeof result !== 'function') {
+        get().addConsoleLog(String(result), 'log', 'python');
       }
       return result;
     } catch (error) {
-      get().addConsoleLog(error.message, 'error');
+      get().addConsoleLog(error.message, 'error', 'python');
       throw error;
     }
   },
 
   runConsoleCommand: (command) => {
-    // Execute JavaScript in global scope - variables persist naturally
     try {
-      // Use direct eval which executes in the caller's scope
-      // This means variables declared with var will be global
       // eslint-disable-next-line no-eval
       return eval(command);
     } catch (error) {
@@ -605,17 +895,25 @@ const useLabStore = create((set, get) => ({
   },
 
   // Run "code" — compiles preview + console output
-  runCode: () => {
-    const { addConsoleLog, setBottomPanelTab, compilePreviewHtml } = get();
+  runCode: async () => {
+    const { addConsoleLog, setBottomPanelTab, compilePreviewHtml, webcontainerInstance, startWebContainerPreviewServer } = get();
     set({ bottomPanelOpen: true, pythonLogs: [], jsLogs: [] });
     setBottomPanelTab('console');
     addConsoleLog('Compiling project...', 'info');
 
+    if (webcontainerInstance) {
+      try {
+        await startWebContainerPreviewServer();
+        addConsoleLog('WebContainer preview server is running.', 'success');
+      } catch (error) {
+        addConsoleLog(`WebContainer preview failed: ${error.message}`, 'error', 'javascript');
+      }
+    }
+
     setTimeout(() => {
       const newPreviewHtml = compilePreviewHtml(get());
       set({ livePreviewHtml: newPreviewHtml });
-      addConsoleLog('Server started on http://localhost:3000', 'success');
-      addConsoleLog('Build completed in 143ms', 'success');
+      addConsoleLog('Build completed successfully.', 'success');
       setTimeout(() => setBottomPanelTab('preview'), 600);
     }, 600);
   },
@@ -625,74 +923,56 @@ const useLabStore = create((set, get) => ({
     const state = get();
     const activeFile = state.getActiveFile();
 
-    if (!activeFile) {
-      state.addConsoleLog('No file selected. Open a file to run.', 'warning');
-      return;
-    }
+    if (!activeFile) return;
 
-    const { addConsoleLog, setBottomPanelTab, setBottomPanelOpen, runPythonCode, runCode, setConsoleMode } = state;
+    const {
+      addConsoleLog, setBottomPanelTab, setBottomPanelOpen, runPythonCode,
+      runCode, setConsoleMode, webcontainerInstance, writeFileToWebContainer
+    } = state;
 
-    // Open console/preview panel
     setBottomPanelOpen(true);
+    set({ isTerminalRunning: true });
 
-    // Python files - run in Python console
-    if (activeFile.language === 'python' || activeFile.name.endsWith('.py')) {
-      setBottomPanelTab('console');
-      setConsoleMode('python');
-      try {
+    try {
+      // Python files
+      if (activeFile.language === 'python' || activeFile.name.endsWith('.py')) {
+        setBottomPanelTab('console');
+        setConsoleMode('python');
         await runPythonCode(activeFile.content);
-      } catch (error) {
-        addConsoleLog(`Python error: ${error.message}`, 'error', 'python');
       }
-    }
-    // JavaScript/TypeScript files - run in JS console
-    else if (['javascript', 'typescript'].includes(activeFile.language) ||
-             activeFile.name.endsWith('.js') || activeFile.name.endsWith('.ts') ||
-             activeFile.name.endsWith('.jsx') || activeFile.name.endsWith('.tsx')) {
-      setBottomPanelTab('console');
-      setConsoleMode('javascript');
-      try {
-        // Capture console methods
-        const originalLog = console.log;
-        const originalWarn = console.warn;
-        const originalError = console.error;
-
-        console.log = (...args) => addConsoleLog(args.join(' '), 'log', 'javascript');
-        console.warn = (...args) => addConsoleLog(args.join(' '), 'warning', 'javascript');
-        console.error = (...args) => addConsoleLog(args.join(' '), 'error', 'javascript');
-
-        // Transform and execute JS/TS code
-        const transformed = activeFile.content
-          .replace(/^\s*import\s+.*?;/gm, '') // Remove ES6 imports
-          .replace(/^\s*export\s+(default\s+)?/gm, '') // Remove exports
-          .replace(/^\s*let\s+/gm, 'var ')
-          .replace(/^\s*const\s+/gm, 'var ');
-
-        // eslint-disable-next-line no-eval
-        const result = eval(transformed);
-
-        // Restore console methods
-        console.log = originalLog;
-        console.warn = originalWarn;
-        console.error = originalError;
-
-        // Log return value if any
-        if (result !== undefined) {
-          addConsoleLog(String(result), 'log', 'javascript');
+      // JavaScript files - run in WebContainer when available.
+      else if (activeFile.name.endsWith('.js') || activeFile.name.endsWith('.mjs') || activeFile.name.endsWith('.cjs')) {
+        setBottomPanelTab('console');
+        setConsoleMode('javascript');
+        addConsoleLog(`> node ${activeFile.name}`, 'command', 'javascript');
+        
+        if (!webcontainerInstance) {
+          addConsoleLog('WebContainer is offline. HTML/CSS/JS preview still works in the browser fallback.', 'error', 'javascript');
+          return;
         }
-      } catch (error) {
-        addConsoleLog(error.message, 'error', 'javascript');
+
+        await writeFileToWebContainer(activeFile);
+        const process = await webcontainerInstance.spawn('node', [activeFile.name]);
+        
+        process.output.pipeTo(new WritableStream({
+          write(data) {
+            addConsoleLog(data, 'log', 'javascript');
+          }
+        }));
+
+        const exitCode = await process.exit;
+        if (exitCode !== 0) {
+          addConsoleLog(`Process exited with code ${exitCode}`, 'error', 'javascript');
+        }
       }
-    }
-    // HTML/CSS files - run full project preview
-    else if (activeFile.language === 'html' || activeFile.language === 'css' ||
-             activeFile.name.endsWith('.html') || activeFile.name.endsWith('.css')) {
-      runCode();
-    }
-    // Unknown file type
-    else {
-      setBottomPanelTab('console');
-      addConsoleLog('File type not supported for execution.', 'warning');
+      // HTML/CSS
+      else if (activeFile.language === 'html' || activeFile.name.endsWith('.html')) {
+        runCode();
+      }
+    } catch (error) {
+      addConsoleLog(error.message, 'error', activeFile.language === 'python' ? 'python' : 'javascript');
+    } finally {
+      set({ isTerminalRunning: false });
     }
   },
 
@@ -836,8 +1116,8 @@ const useLabStore = create((set, get) => ({
       const milestoneIndex = currentMilestoneId ? parseInt(currentMilestoneId.replace('m', '')) - 1 : 0;
 
       // Basic mapping to strip out large unnecessary UI state elements from files
-      const cleanFiles = files.map(f => ({
-        name: f.name,
+      const cleanFiles = getPersistableFiles(files).map(f => ({
+        name: f.filename,
         content: f.content,
         language: f.language
       }));
@@ -1150,6 +1430,32 @@ const useLabStore = create((set, get) => ({
       }]
     };
   }),
+
+  markProjectComplete: async () => {
+    const { projectId, files, milestones } = get();
+    if (!projectId || projectId === 'sandbox') return null;
+
+    try {
+      const response = await progressApi.saveProgress(projectId, {
+        isComplete: true,
+        currentMilestoneIndex: Math.max(0, milestones.length - 1),
+        savedCode: getPersistableFiles(files),
+      });
+
+      if (response?.certificate) {
+        set((s) => ({
+          aiMessages: [...s.aiMessages, {
+            role: 'ai',
+            content: `Your Builder Certificate is ready: **${response.certificate.title}**. It will now appear on your profile.`,
+          }],
+        }));
+      }
+      return response;
+    } catch (error) {
+      get().addConsoleLog(`Could not issue certificate: ${error.message}`, 'error', 'javascript');
+      return null;
+    }
+  },
 
   showQuiz: async () => {
     const { projectId, currentMilestoneId, milestones } = get();

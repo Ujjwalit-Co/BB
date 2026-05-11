@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Terminal as TerminalIcon, Eye, ExternalLink, ChevronsDown, ChevronsUp, Trash2, Play, Sparkles, Loader2, Code2, Box } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { X, Terminal as TerminalIcon, Eye, ExternalLink, ChevronsDown, ChevronsUp, Trash2, Play, Sparkles, Box, Square } from 'lucide-react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { FileIcon } from './fileIcons.jsx';
 import Editor from '../Editor';
 import useLabStore from '../../store/useLabStore';
@@ -44,17 +44,17 @@ const LoadingState = ({ message }) => {
         </div>
         
         <div className="space-y-4 text-center mt-2">
-          <motion.h2 
+          <Motion.h2 
             key={message}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]"
           >
             {message}
-          </motion.h2>
+          </Motion.h2>
           <div className="h-10 flex items-center justify-center overflow-hidden px-4">
             <AnimatePresence mode="wait">
-              <motion.p
+              <Motion.p
                 key={quoteIndex}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -63,13 +63,13 @@ const LoadingState = ({ message }) => {
                 className="text-[13px] text-slate-500 dark:text-gray-400 font-medium italic leading-relaxed"
               >
                 "{LOADING_QUOTES[quoteIndex]}"
-              </motion.p>
+              </Motion.p>
             </AnimatePresence>
           </div>
         </div>
  
         <div className="w-64 h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden border border-slate-200/50 dark:border-white/10 mt-10 shadow-inner">
-          <motion.div
+          <Motion.div
             initial={{ width: "0%" }}
             animate={{ width: `${loadingProgress}%` }}
             transition={{ type: "spring", stiffness: 45, damping: 20 }}
@@ -88,7 +88,9 @@ export default function EditorPane() {
     bottomPanelTab, setBottomPanelTab, bottomPanelOpen, toggleBottomPanel,
     pythonLogs, jsLogs, consoleMode, addConsoleLog, clearConsoleLogs, setConsoleMode,
     setAiInput, toggleRightSidebar, rightSidebarOpen, runPythonCode,
-    isLabLoading, loadingStatus, loadingProgress, runCode, setBottomPanelOpen
+    isLabLoading, loadingStatus, runCode,
+    webcontainerPreviewUrl, webcontainerError, runShellCommand, stopTerminalProcess,
+    isTerminalRunning, webcontainerInstance
   } = useLabStore();
 
   const iframeRef = useRef(null);
@@ -164,13 +166,17 @@ export default function EditorPane() {
     const command = consoleInput.trim();
     setCommandHistory(prev => [...prev, command]);
     setHistoryIndex(-1);
-    addConsoleLog(`> ${command}`, 'command', consoleMode);
+    setConsoleInput('');
+    if (consoleMode !== 'shell') {
+      addConsoleLog(`> ${command}`, 'command', consoleMode);
+    }
 
-    // Use consoleMode to determine runtime
-    if (consoleMode === 'python') {
+    if (consoleMode === 'shell') {
+      await runShellCommand(command);
+    } else if (consoleMode === 'python') {
       try {
         await runPythonCode(command);
-      } catch (error) {
+      } catch {
         // Error already logged by runPythonCode
       }
     } else {
@@ -221,8 +227,6 @@ export default function EditorPane() {
         addConsoleLog(error.message, 'error');
       }
     }
-
-    setConsoleInput('');
   };
 
   const handleKeyDown = (e) => {
@@ -244,12 +248,17 @@ export default function EditorPane() {
   };
 
   const handleOpenPreviewTab = () => {
+    if (webcontainerPreviewUrl) {
+      window.open(webcontainerPreviewUrl, '_blank');
+      return;
+    }
     const html = getCompiledPreview();
     const blob = new Blob([html], { type: 'text/html' });
     window.open(URL.createObjectURL(blob), '_blank');
   };
 
   const hasHtmlFile = files.some(f => f.name.endsWith('.html'));
+  const hasPreview = hasHtmlFile || Boolean(webcontainerPreviewUrl);
 
   const getTabDotClass = (file) => {
     if (!file.status || file.status === 'clean') return null;
@@ -265,20 +274,20 @@ export default function EditorPane() {
     <div className="lab-editor-pane relative h-full">
       <AnimatePresence>
         {isLabLoading && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-[60]"
           >
             <LoadingState message={loadingStatus} />
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {selection.visible && (
-          <motion.button
+          <Motion.button
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -288,7 +297,7 @@ export default function EditorPane() {
           >
             <Sparkles size={12} />
             <span>Ask AI</span>
-          </motion.button>
+          </Motion.button>
         )}
       </AnimatePresence>
 
@@ -368,7 +377,7 @@ export default function EditorPane() {
             <span className="lab-bottom-badge">{pythonLogs.length + jsLogs.length}</span>
           )}
         </button>
-        {hasHtmlFile && (
+        {hasPreview && (
           <button
             className={`lab-bottom-tab-btn ${bottomPanelTab === 'preview' ? 'active' : ''}`}
             onClick={() => { setBottomPanelTab('preview'); if (!bottomPanelOpen) toggleBottomPanel(); }}
@@ -385,32 +394,42 @@ export default function EditorPane() {
             <div className="lab-console-header">
               <div className="lab-console-header-left">
                 <span className="lab-console-title">Console</span>
-                <div className="flex items-center gap-1">
+                <div className="lab-console-mode-group">
                   <button
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                      consoleMode === 'python'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
-                    }`}
+                    className={`lab-console-chip ${consoleMode === 'shell' ? 'active shell' : ''}`}
+                    onClick={() => setConsoleMode('shell')}
+                    type="button"
+                    title={webcontainerInstance ? 'Run WebContainer shell commands' : 'WebContainer is offline'}
+                  >
+                    Shell
+                  </button>
+                  <button
+                    className={`lab-console-chip ${consoleMode === 'python' ? 'active python' : ''}`}
                     onClick={() => setConsoleMode('python')}
+                    type="button"
                   >
                     Python
                   </button>
                   <button
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                      consoleMode === 'javascript'
-                        ? 'bg-yellow-600 text-white'
-                        : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
-                    }`}
+                    className={`lab-console-chip ${consoleMode === 'javascript' ? 'active javascript' : ''}`}
                     onClick={() => setConsoleMode('javascript')}
+                    type="button"
                   >
                     JavaScript
                   </button>
                 </div>
               </div>
-              <button className="lab-console-clear-btn" onClick={clearConsoleLogs}>
-                <Trash2 size={13} />
-              </button>
+              <div className="lab-console-header-actions">
+                {isTerminalRunning && (
+                  <button className="lab-console-stop-btn" onClick={stopTerminalProcess} type="button">
+                    <Square size={11} />
+                    Stop
+                  </button>
+                )}
+                <button className="lab-console-clear-btn" onClick={clearConsoleLogs} type="button">
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
             <div className="lab-console-logs">
               {currentLogs.length === 0 ? (
@@ -426,7 +445,7 @@ export default function EditorPane() {
               <div ref={logsEndRef} />
             </div>
             <form className="lab-console-input-form" onSubmit={handleExecuteCommand}>
-              <span className="lab-console-prompt">&gt;</span>
+              <span className="lab-console-prompt">{consoleMode === 'shell' ? '$' : '>'}</span>
               <input
                 ref={inputRef}
                 type="text"
@@ -436,8 +455,11 @@ export default function EditorPane() {
                 onKeyDown={handleKeyDown}
                 placeholder={consoleMode === 'python'
                   ? "Try: print('Hello'), x = 5, def foo(): ..., import math"
-                  : "Try: console.log('Hello'), let x = 5, fetch('/api')..."}
+                  : consoleMode === 'shell'
+                    ? "Try: npm install, npm run dev, node script.js, ls"
+                    : "Try: console.log('Hello'), let x = 5, fetch('/api')..."}
                 autoComplete="off"
+                disabled={consoleMode === 'shell' && isTerminalRunning}
               />
               <button type="submit" className="lab-console-run-btn">
                 <Play size={12} />
@@ -445,8 +467,31 @@ export default function EditorPane() {
             </form>
           </div>
           
-          <div className="lab-preview" style={{ display: (bottomPanelTab === 'preview' && hasHtmlFile) ? 'block' : 'none' }}>
-            <iframe ref={iframeRef} title="Live Preview" className="lab-preview-iframe" srcDoc={debouncedHtml} sandbox="allow-scripts allow-same-origin" />
+          <div className="lab-preview" style={{ display: (bottomPanelTab === 'preview' && hasPreview) ? 'flex' : 'none' }}>
+            <div className="lab-preview-toolbar">
+              <div className="lab-preview-status">
+                <span className={`lab-preview-dot ${webcontainerPreviewUrl ? 'live' : 'fallback'}`} />
+                <span>{webcontainerPreviewUrl ? 'WebContainer preview' : 'Browser fallback preview'}</span>
+                {webcontainerError && <span className="lab-preview-error">{webcontainerError}</span>}
+              </div>
+              <div className="lab-preview-actions">
+                {!webcontainerPreviewUrl && (
+                  <button className="lab-preview-action" onClick={runCode} type="button">
+                    <Play size={12} />
+                    Refresh
+                  </button>
+                )}
+                <button className="lab-preview-action" onClick={handleOpenPreviewTab} type="button">
+                  <ExternalLink size={12} />
+                  Open
+                </button>
+              </div>
+            </div>
+            {webcontainerPreviewUrl ? (
+              <iframe ref={iframeRef} title="WebContainer Preview" className="lab-preview-iframe with-toolbar" src={webcontainerPreviewUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
+            ) : (
+              <iframe ref={iframeRef} title="Live Preview" className="lab-preview-iframe with-toolbar" srcDoc={debouncedHtml} sandbox="allow-scripts allow-same-origin" />
+            )}
           </div>
         </div>
       )}

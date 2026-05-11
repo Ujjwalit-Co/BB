@@ -2,6 +2,77 @@ import UserProgress from "../models/UserProgress.js";
 import Project from "../models/Project.js";
 import Purchase from "../models/Purchase.js";
 import User from "../models/User.js";
+import CreditTransaction from "../models/CreditTransaction.js";
+import Certificate from "../models/Certificate.js";
+
+const ignoredCodePathPattern = /(^|\/)(node_modules|\.git|dist|build|coverage|__pycache__|\.pytest_cache|\.venv|venv|env|\.next|\.turbo|\.cache)(\/|$)|(\.pyc|\.pyo|\.log|\.map)$/i;
+const maxSavedFileBytes = 160000;
+
+function sanitizeSavedCode(files = []) {
+  if (!Array.isArray(files)) return [];
+
+  return files
+    .filter((file) => {
+      const filename = String(file.filename || file.name || "").replace(/\\/g, "/");
+      if (!filename || ignoredCodePathPattern.test(filename)) return false;
+      const content = String(file.content || "");
+      return content.length <= maxSavedFileBytes;
+    })
+    .slice(0, 80)
+    .map((file) => ({
+      filename: String(file.filename || file.name).replace(/\\/g, "/"),
+      content: String(file.content || ""),
+      lastSavedAt: new Date(),
+    }));
+}
+
+async function issueLearnerCertificate(progress) {
+  const [user, project] = await Promise.all([
+    User.findById(progress.user),
+    Project.findById(progress.project).populate("seller", "name"),
+  ]);
+
+  if (!user || !project) return null;
+  const template = project.certificateTemplate || {};
+  if (template.enabled === false) return null;
+
+  const certificateId = `BB-${project._id.toString().slice(-6).toUpperCase()}-${user._id.toString().slice(-6).toUpperCase()}`;
+  const completedMilestones = project.milestones?.length || 0;
+
+  const cert = await Certificate.findOneAndUpdate(
+    { user: user._id, project: project._id, type: "learner_project_completion" },
+    {
+      user: user._id,
+      project: project._id,
+      creator: project.seller?._id,
+      type: "learner_project_completion",
+      title: template.headline || "Certified Project Builder",
+      recipientName: user.name,
+      projectTitle: project.title,
+      templateName: template.name || "BrainBazaar Builder Certificate",
+      templateBody: (template.body || "")
+        .replaceAll("{{studentName}}", user.name)
+        .replaceAll("{{projectTitle}}", project.title)
+        .replaceAll("{{creatorName}}", project.seller?.name || "BrainBazaar creator"),
+      certificateId,
+      issuedAt: new Date(),
+      metadata: { completedMilestones },
+      layout: {
+        backgroundImageUrl: template.backgroundImageUrl || "",
+        namePositionX: template.namePositionX ?? 50,
+        namePositionY: template.namePositionY ?? 50,
+        nameFontSize: template.nameFontSize ?? 48,
+        nameColor: template.nameColor ?? "#1E3A2F",
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  progress.certificateGenerated = true;
+  progress.completedAt = progress.completedAt || new Date();
+  await progress.save();
+  return cert;
+}
 
 // Start free trial for a project (NEW MODEL: 3 projects max, 1 milestone each)
 export const startFreeTrial = async (req, res) => {
@@ -33,7 +104,11 @@ export const startFreeTrial = async (req, res) => {
     }
 
     // Check Free Trial Limit (Max 3 projects)
-    if (!user.freeTrialProjects.includes(projectId)) {
+    const hasUsedTrialForProject = user.freeTrialProjects.some(
+      (id) => id.toString() === projectId.toString()
+    );
+
+    if (!hasUsedTrialForProject) {
       if (user.freeTrialProjects.length >= 3) {
          return res.status(403).json({ message: "You have exhausted your 3 free project trials. Please purchase a project or use credits." });
       }
@@ -91,7 +166,11 @@ export const getUserProgress = async (req, res) => {
         isFreeTrial = false;
       } else {
         const user = await User.findById(userId);
-        if (user.freeTrialProjects.includes(projectId)) {
+        const hasUsedTrialForProject = user.freeTrialProjects.some(
+          (id) => id.toString() === projectId.toString()
+        );
+
+        if (hasUsedTrialForProject) {
           isFreeTrial = true;
         } else if (user.freeTrialProjects.length < 3) {
           // Start new trial
@@ -151,6 +230,7 @@ export const saveUserProgress = async (req, res) => {
       quizScores,
       userEnvironment,
       savedCode,
+      isComplete,
     } = req.body;
 
     const userId = req.user._id;
@@ -174,15 +254,23 @@ export const saveUserProgress = async (req, res) => {
 
     if (quizScores) progress.quizScores = quizScores;
     if (userEnvironment) progress.userEnvironment = { ...progress.userEnvironment, ...userEnvironment, savedAt: new Date() };
-    if (savedCode) progress.savedCode = savedCode;
+    if (savedCode) progress.savedCode = sanitizeSavedCode(savedCode);
+    if (isComplete === true) {
+      progress.isComplete = true;
+      progress.completedAt = progress.completedAt || new Date();
+    }
 
     progress.lastActive = new Date();
     await progress.save();
+    const certificate = progress.isComplete && !progress.certificateGenerated
+      ? await issueLearnerCertificate(progress)
+      : null;
 
     res.json({
       success: true,
       message: "Progress saved successfully",
       progress,
+      certificate,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -266,6 +354,8 @@ export const proxyAskQuestion = async (req, res) => {
 
     let creditsDeducted = false;
     let messagesRemaining = 0;
+    let shouldDeductCredits = false;
+    let progress = null;
 
     if (isSandbox) {
       // Sandbox mode: ALWAYS costs 2 credits per question
@@ -276,12 +366,10 @@ export const proxyAskQuestion = async (req, res) => {
           credits: user.credits 
         });
       }
-      user.credits -= 2;
-      await user.save();
-      creditsDeducted = true;
+      shouldDeductCredits = true;
     } else {
       // Standard project mode
-      let progress = await UserProgress.findOne({ user: userId, project: projectId });
+      progress = await UserProgress.findOne({ user: userId, project: projectId });
       if (!progress) {
         return res.status(404).json({ success: false, message: "Progress not found. Start project first." });
       }
@@ -308,41 +396,62 @@ export const proxyAskQuestion = async (req, res) => {
             needsCredits: true
           });
         }
-        
-        // Deduct 2 credits per message after limit
-        user.credits -= 2;
-        await user.save();
-        
-        // Still increment message count for tracking
-        await progress.incrementMessageCount(milestoneIndex);
-        
-        creditsDeducted = true;
-        messagesRemaining = 0;
+        shouldDeductCredits = true;
       } else {
-        // Still within free limit, increment count
-        await progress.incrementMessageCount(milestoneIndex);
-        
-        const messagesUsed = progress.getMessagesUsedInMilestone(milestoneIndex);
         const limit = progress.isFreeTrial 
           ? progress.messageLimits.freeTrialMessagesPerMilestone 
           : progress.messageLimits.purchasedMessagesPerMilestone;
         
-        messagesRemaining = limit - messagesUsed;
+        messagesRemaining = Math.max(limit - progress.getMessagesUsedInMilestone(milestoneIndex) - 1, 0);
       }
     }
 
     // Call FastAPI
     const { default: axios } = await import("axios");
-    const FASTAPI_URL = process.env.FASTAPI_URL || 'http://localhost:8080';
+    const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
 
     const fastApiUrl = `${FASTAPI_URL}/projects/${projectId}/milestones/${milestoneIndex + 1}/ask`;
 
+    const cleanFiles = sanitizeSavedCode(files || []).map((file) => ({
+      name: file.filename,
+      content: file.content,
+      language: file.filename.split(".").pop() || "text",
+    }));
+
     const fastApiResponse = await axios.post(fastApiUrl, {
       question,
-      files: files || [],
+      files: cleanFiles,
       lab_mode: 'browser',
       project_context: projectContext
     });
+
+    // Only consume credits/message allowance after the AI call succeeds.
+    if (shouldDeductCredits) {
+      user.credits -= 2;
+      await user.save();
+      creditsDeducted = true;
+
+      await CreditTransaction.create({
+        user: user._id,
+        type: 'consumption',
+        amount: -2,
+        balanceAfter: user.credits,
+        description: isSandbox ? 'Sandbox AI question' : `AI question after milestone ${milestoneIndex + 1} message limit`,
+        projectId: isSandbox ? undefined : projectId,
+        milestoneNumber: isSandbox ? undefined : milestoneIndex + 1,
+      });
+    }
+
+    if (progress) {
+      await progress.incrementMessageCount(milestoneIndex);
+      if (!shouldDeductCredits) {
+        const messagesUsed = progress.getMessagesUsedInMilestone(milestoneIndex);
+        const limit = progress.isFreeTrial 
+          ? progress.messageLimits.freeTrialMessagesPerMilestone 
+          : progress.messageLimits.purchasedMessagesPerMilestone;
+        messagesRemaining = Math.max(limit - messagesUsed, 0);
+      }
+    }
 
     res.json({
       success: true,
